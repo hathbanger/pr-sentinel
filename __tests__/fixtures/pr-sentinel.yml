@@ -1,0 +1,30 @@
+mode: review_and_suggest
+
+models:
+  anthropic:
+    enabled: true
+    model: claude-sonnet-4-20250514
+  openai:
+    enabled: true
+    model: gpt-4o
+
+review:
+  max_files: 30
+  max_patch_chars: 100000
+  comment_style: concise
+  inline_comments: true
+  severity_threshold: high
+
+security:
+  restricted_paths:
+    - ".github/**"
+    - "src/auth/**"
+    - "src/payments/**"
+  block_fork_mutation: true
+
+validation:
+  commands:
+    - "pnpm install --frozen-lockfile"
+    - "pnpm lint"
+    - "pnpm typecheck"
+    - "pnpm test"

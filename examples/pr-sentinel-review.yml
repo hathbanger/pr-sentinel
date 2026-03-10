@@ -1,0 +1,45 @@
+# Copy this file to .github/workflows/pr-sentinel.yml in your repository.
+#
+# Required secrets:
+#   ANTHROPIC_API_KEY — Anthropic API key for Claude
+#   OPENAI_API_KEY   — OpenAI API key for GPT
+#
+# Optional: create .github/pr-sentinel.yml for per-repo configuration.
+
+name: PR Sentinel
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-sentinel-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: AI Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issues' && github.event.action == 'opened') ||
+      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/bot'))
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: 402goose/pr-sentinel@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

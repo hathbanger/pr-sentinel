@@ -1,0 +1,42 @@
+name: "PR Sentinel"
+description: "Dual-model AI review bot for pull requests and issues using Anthropic + OpenAI"
+author: "402goose"
+
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  anthropic_api_key:
+    description: "Anthropic API key for Claude"
+    required: true
+  openai_api_key:
+    description: "OpenAI API key for GPT/Codex"
+    required: true
+  github_token:
+    description: "GitHub token for API access"
+    required: false
+    default: ${{ github.token }}
+  config_path:
+    description: "Path to pr-sentinel.yml config file"
+    required: false
+    default: ".github/pr-sentinel.yml"
+  mode:
+    description: "Override mode: review, review_and_suggest, review_and_patch, issue_triage, manual_only"
+    required: false
+  anthropic_model:
+    description: "Anthropic model to use"
+    required: false
+    default: "claude-sonnet-4-20250514"
+  openai_model:
+    description: "OpenAI model to use"
+    required: false
+    default: "gpt-4o"
+  debug:
+    description: "Enable debug logging"
+    required: false
+    default: "false"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"

@@ -1,0 +1,40 @@
+# .github/pr-sentinel.yml — Per-repo configuration
+# All fields are optional. Defaults are shown below.
+
+mode: review # review | review_and_suggest | review_and_patch | issue_triage | manual_only
+
+models:
+  anthropic:
+    enabled: true
+    model: claude-sonnet-4-20250514
+  openai:
+    enabled: true
+    model: gpt-4o
+
+review:
+  max_files: 50
+  max_patch_chars: 200000
+  comment_style: comprehensive # concise | comprehensive
+  inline_comments: true
+  severity_threshold: medium # low | medium | high | critical
+
+fix:
+  allow_auto_fix: false
+  allow_push_to_pr_branch: false
+  max_retry_count: 2
+  create_draft_pr: true
+
+security:
+  restricted_paths:
+    - ".github/workflows/**"
+    - "infra/**"
+    - "auth/**"
+    - "payments/**"
+  block_fork_mutation: true
+
+validation:
+  commands:
+    - "npm ci"
+    - "npm run lint"
+    - "npm run typecheck"
+    - "npm test"

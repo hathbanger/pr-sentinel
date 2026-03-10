@@ -1,0 +1,27 @@
+{
+  "action": "opened",
+  "number": 42,
+  "pull_request": {
+    "number": 42,
+    "title": "feat: add user authentication",
+    "body": "Adds JWT-based authentication with refresh token rotation.\n\n## Changes\n- New auth middleware\n- Login/logout endpoints\n- Token refresh logic",
+    "state": "open",
+    "user": { "login": "contributor" },
+    "base": { "ref": "main", "sha": "abc123" },
+    "head": {
+      "ref": "feature/auth",
+      "sha": "def456",
+      "repo": { "fork": false }
+    },
+    "labels": [{ "name": "feature" }],
+    "draft": false,
+    "mergeable": true
+  },
+  "repository": {
+    "name": "my-app",
+    "owner": { "login": "my-org" },
+    "default_branch": "main",
+    "private": true
+  },
+  "sender": { "login": "contributor" }
+}
