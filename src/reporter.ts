@@ -1,6 +1,6 @@
 import * as core from "@actions/core"
 import * as github from "@actions/github"
-import type { FinalDecision, FinalAction, ReviewFinding, FindingSeverity, FindingType } from "./types"
+import type { FinalDecision, FinalAction, ReviewFinding, FindingSeverity, FindingType, FixResult, FixMode } from "./types"
 
 type Octokit = ReturnType<typeof github.getOctokit>
 
@@ -86,6 +86,96 @@ export async function reportIssueTriage(
     "*Triaged by PR Sentinel*",
   ].join("\n")
 
+  await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body })
+}
+
+export async function reportFixResult(
+  octokit: Octokit,
+  issueNumber: number,
+  result: FixResult,
+  mode: FixMode
+): Promise<void> {
+  const { owner, repo } = github.context.repo
+  const lines: string[] = [COMMENT_MARKER]
+
+  if (result.success && result.fixPlan) {
+    const plan = result.fixPlan
+    const modeLabel =
+      mode === "propose_only" ? "Proposed Fix" :
+      mode === "propose_and_pr" ? "Fix PR Created" :
+      "Fix Applied (Auto-merged)"
+
+    lines.push(`## PR Sentinel — ${modeLabel} ✅`)
+    lines.push("")
+    lines.push(`**Confidence:** ${(plan.confidence * 100).toFixed(0)}%`)
+    lines.push("")
+    lines.push("### Analysis")
+    lines.push(plan.analysis)
+    lines.push("")
+    lines.push("### Changes")
+
+    for (const file of plan.files) {
+      lines.push("")
+      lines.push(`#### \`${file.path}\` (${file.action})`)
+      lines.push(file.explanation)
+
+      if (file.changes && file.changes.length > 0) {
+        lines.push("")
+        lines.push("<details>")
+        lines.push("<summary>View changes</summary>")
+        lines.push("")
+        for (const change of file.changes) {
+          lines.push("```diff")
+          lines.push(`- ${change.search.split("\n").join("\n- ")}`)
+          lines.push(`+ ${change.replace.split("\n").join("\n+ ")}`)
+          lines.push("```")
+        }
+        lines.push("")
+        lines.push("</details>")
+      }
+    }
+
+    if (plan.testSuggestions.length > 0) {
+      lines.push("")
+      lines.push("### Suggested Tests")
+      for (const t of plan.testSuggestions) lines.push(`- [ ] ${t}`)
+    }
+
+    if (plan.riskNotes.length > 0) {
+      lines.push("")
+      lines.push("### Risk Notes")
+      for (const r of plan.riskNotes) lines.push(`- ⚠️ ${r}`)
+    }
+
+    if (result.prUrl) {
+      lines.push("")
+      lines.push(`### Pull Request`)
+      lines.push(`→ ${result.prUrl}`)
+    }
+  } else {
+    lines.push("## PR Sentinel — Fix Analysis ℹ️")
+    lines.push("")
+    lines.push(`Could not generate a fix: ${result.error}`)
+
+    if (result.fixPlan) {
+      lines.push("")
+      lines.push("### Analysis")
+      lines.push(result.fixPlan.analysis)
+
+      if (result.fixPlan.confidence > 0) {
+        lines.push("")
+        lines.push(`Confidence was ${(result.fixPlan.confidence * 100).toFixed(0)}% (below threshold).`)
+      }
+    }
+  }
+
+  lines.push("")
+  lines.push("---")
+  lines.push("*Did we get this right? 👍 / 👎 to inform future fixes*")
+  lines.push("")
+  lines.push("*PR Sentinel*")
+
+  const body = lines.join("\n")
   await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body })
 }
 

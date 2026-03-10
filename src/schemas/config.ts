@@ -29,6 +29,15 @@ export const SentinelConfigSchema = z.object({
     })
     .default({}),
 
+  trigger: z
+    .object({
+      require_label: z.string().default("agent"),
+      respond_to_mentions: z.boolean().default(true),
+      respond_to_replies: z.boolean().default(true),
+      bot_name: z.string().default("pr-sentinel"),
+    })
+    .default({}),
+
   review: z
     .object({
       max_files: z.number().default(50),
@@ -43,8 +52,8 @@ export const SentinelConfigSchema = z.object({
 
   fix: z
     .object({
-      allow_auto_fix: z.boolean().default(false),
-      allow_push_to_pr_branch: z.boolean().default(false),
+      mode: z.enum(["propose_only", "propose_and_pr", "yolo"]).default("propose_and_pr"),
+      confidence_threshold: z.number().min(0).max(1).default(0.7),
       max_retry_count: z.number().default(2),
       create_draft_pr: z.boolean().default(true),
     })

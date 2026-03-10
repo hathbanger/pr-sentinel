@@ -30,4 +30,6 @@ export interface ModelClient {
     response: CritiqueResponse
     usage: TokenUsage
   }>
+
+  chat(system: string, user: string): Promise<{ text: string; usage: TokenUsage }>
 }

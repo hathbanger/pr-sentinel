@@ -4,7 +4,9 @@ import { routeEvent } from "./router"
 import { buildPRContext, buildIssueContext } from "./context"
 import { loadPolicies } from "./policy"
 import { orchestrateReview } from "./orchestrator"
-import { reportReview, reportIssueTriage, reportFailure } from "./reporter"
+import { reportReview, reportIssueTriage, reportFailure, reportFixResult } from "./reporter"
+import { fixIssue } from "./fixer"
+import { handleResponse } from "./responder"
 import { AnthropicClient } from "./models/anthropic"
 import { OpenAIClient } from "./models/openai"
 import type { ModelClient } from "./models/types"
@@ -44,13 +46,13 @@ async function run(): Promise<void> {
     if (anthropicKey && policies.models.anthropic.enabled) {
       anthropic = new AnthropicClient(anthropicKey, policies.models.anthropic.model)
     } else {
-      core.warning("Anthropic disabled or no API key — running without architecture review")
+      core.warning("Anthropic disabled or no API key")
     }
 
     if (openaiKey && policies.models.openai.enabled) {
       openai = new OpenAIClient(openaiKey, policies.models.openai.model)
     } else {
-      core.warning("OpenAI disabled or no API key — running without implementation review")
+      core.warning("OpenAI disabled or no API key")
     }
 
     if (!anthropic && !openai) {
@@ -63,18 +65,38 @@ async function run(): Promise<void> {
         await handlePRReview(octokit, routed.context, anthropic, openai, debug)
         break
       }
+      case "issue_fix": {
+        await handleIssueFix(octokit, routed.context, anthropic, openai, debug)
+        break
+      }
       case "issue_triage": {
         await handleIssueTriage(octokit, routed.context)
         break
       }
-      case "pr_fix":
-      case "issue_fix": {
-        core.info(`${routed.actionType} is not yet implemented (Phase 2+)`)
+      case "respond": {
+        if (routed.responseContext) {
+          const model = anthropic || openai!
+          await handleResponse(routed.context, routed.responseContext, model, octokit)
+        }
+        break
+      }
+      case "pr_fix": {
+        core.info("PR fix mode not yet implemented (Phase 2)")
         break
       }
       case "slash_command": {
         const cmd = routed.slashCommand
-        core.info(`Slash command received: /bot ${cmd?.command} (Phase 1+)`)
+        if (cmd?.command === "fix") {
+          if (cmd.isPR) {
+            core.info("PR fix via slash command not yet implemented")
+          } else {
+            await handleIssueFix(octokit, routed.context, anthropic, openai, debug)
+          }
+        } else if (cmd?.command === "review" && cmd.isPR) {
+          await handlePRReview(octokit, routed.context, anthropic, openai, debug)
+        } else {
+          core.info(`Slash command /bot ${cmd?.command} — not yet implemented`)
+        }
         break
       }
     }
@@ -131,6 +153,37 @@ async function handlePRReview(
   await reportReview(octokit, decision, ctx.pullRequest!.number)
 }
 
+async function handleIssueFix(
+  octokit: ReturnType<typeof github.getOctokit>,
+  ctx: import("./types").ReviewContext,
+  anthropic: ModelClient | null,
+  openai: ModelClient | null,
+  debug: boolean
+): Promise<void> {
+  if (!ctx.issue) {
+    core.warning("No issue context available")
+    return
+  }
+
+  ctx = await buildIssueContext(ctx, octokit)
+
+  if (debug) {
+    core.info(`Fixing issue #${ctx.issue!.number}: ${ctx.issue!.title}`)
+  }
+
+  const { mode, confidenceThreshold } = ctx.repoPolicies.fix
+
+  const result = await fixIssue(ctx, anthropic, openai, octokit, mode, confidenceThreshold)
+
+  await reportFixResult(octokit, ctx.issue!.number, result, mode)
+
+  if (result.success) {
+    core.info(`Fix ${mode === "propose_only" ? "proposed" : "applied"} for issue #${ctx.issue!.number}`)
+  } else {
+    core.warning(`Fix failed for issue #${ctx.issue!.number}: ${result.error}`)
+  }
+}
+
 async function handleIssueTriage(
   octokit: ReturnType<typeof github.getOctokit>,
   ctx: import("./types").ReviewContext
@@ -142,9 +195,7 @@ async function handleIssueTriage(
 
   ctx = await buildIssueContext(ctx, octokit)
 
-  core.info(`Issue #${ctx.issue!.number} triage: not yet implemented (Phase 0.5)`)
-  core.info(`Title: ${ctx.issue!.title}`)
-  core.info(`Labels: ${ctx.issue!.labels.join(", ") || "none"}`)
+  core.info(`Issue #${ctx.issue!.number} triage: routing to fix flow`)
 }
 
 run()

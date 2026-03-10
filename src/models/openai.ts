@@ -144,6 +144,10 @@ export class OpenAIClient implements ModelClient {
     }
   }
 
+  async chat(system: string, user: string): Promise<{ text: string; usage: import("../types").TokenUsage }> {
+    return this.call(system, user)
+  }
+
   private async call(
     system: string,
     user: string,

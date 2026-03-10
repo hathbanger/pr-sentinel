@@ -14,20 +14,20 @@ export declare const ReviewFindingSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
     title: string;
-    severity: "low" | "medium" | "high" | "critical";
     confidence: number;
-    file: string;
     explanation: string;
+    severity: "low" | "medium" | "high" | "critical";
+    file: string;
     line_start?: number | undefined;
     line_end?: number | undefined;
     suggested_fix?: string | undefined;
 }, {
     type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
     title: string;
-    severity: "low" | "medium" | "high" | "critical";
     confidence: number;
-    file: string;
     explanation: string;
+    severity: "low" | "medium" | "high" | "critical";
+    file: string;
     line_start?: number | undefined;
     line_end?: number | undefined;
     suggested_fix?: string | undefined;
@@ -49,20 +49,20 @@ export declare const ModelReviewSchema: z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
     }, {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
@@ -70,37 +70,37 @@ export declare const ModelReviewSchema: z.ZodObject<{
     merge_blocking: z.ZodBoolean;
     needs_human_attention: z.ZodBoolean;
 }, "strip", z.ZodTypeAny, {
+    confidence: number;
     findings: {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
     }[];
     summary: string;
     severity: "low" | "medium" | "high" | "critical";
-    confidence: number;
     merge_blocking: boolean;
     needs_human_attention: boolean;
 }, {
+    confidence: number;
     findings: {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
     }[];
     summary: string;
     severity: "low" | "medium" | "high" | "critical";
-    confidence: number;
     merge_blocking: boolean;
     needs_human_attention: boolean;
 }>;
@@ -129,20 +129,20 @@ export declare const CritiqueOutputSchema: z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
     }, {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
@@ -158,10 +158,10 @@ export declare const CritiqueOutputSchema: z.ZodObject<{
     missed_issues: {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
@@ -177,10 +177,10 @@ export declare const CritiqueOutputSchema: z.ZodObject<{
     missed_issues: {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
@@ -213,20 +213,20 @@ export declare const CritiqueResponseSchema: z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
     }, {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
@@ -241,10 +241,10 @@ export declare const CritiqueResponseSchema: z.ZodObject<{
     revised_findings: {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
@@ -259,10 +259,10 @@ export declare const CritiqueResponseSchema: z.ZodObject<{
     revised_findings: {
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         title: string;
-        severity: "low" | "medium" | "high" | "critical";
         confidence: number;
-        file: string;
         explanation: string;
+        severity: "low" | "medium" | "high" | "critical";
+        file: string;
         line_start?: number | undefined;
         line_end?: number | undefined;
         suggested_fix?: string | undefined;

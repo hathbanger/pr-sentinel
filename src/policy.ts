@@ -3,7 +3,7 @@ import * as github from "@actions/github"
 import * as fs from "fs"
 import { parse as parseYaml } from "yaml"
 import { SentinelConfigSchema, type SentinelConfig } from "./schemas/config"
-import type { RepoPolicies, ReviewMode, FindingSeverity } from "./types"
+import type { RepoPolicies, ReviewMode, FindingSeverity, FixMode } from "./types"
 
 type Octokit = ReturnType<typeof github.getOctokit>
 
@@ -18,10 +18,13 @@ export async function loadPolicies(
   const mode = (modeOverride as ReviewMode) || config.mode
   const anthropicModel = core.getInput("anthropic_model") || config.models.anthropic.model
   const openaiModel = core.getInput("openai_model") || config.models.openai.model
+  const botNameInput = core.getInput("bot_name")
+  const fixModeInput = core.getInput("fix_mode")
+  const triggerLabelInput = core.getInput("trigger_label")
 
   return {
     mode,
-    autoFixEnabled: config.fix.allow_auto_fix,
+    autoFixEnabled: config.fix.mode !== "propose_only",
     restrictedPaths: config.security.restricted_paths,
     testCommands: config.validation.commands,
     maxFiles: config.review.max_files,
@@ -35,6 +38,18 @@ export async function loadPolicies(
     models: {
       anthropic: { enabled: config.models.anthropic.enabled, model: anthropicModel },
       openai: { enabled: config.models.openai.enabled, model: openaiModel },
+    },
+    trigger: {
+      requireLabel: triggerLabelInput || config.trigger.require_label,
+      respondToMentions: config.trigger.respond_to_mentions,
+      respondToReplies: config.trigger.respond_to_replies,
+      botName: botNameInput || config.trigger.bot_name,
+    },
+    fix: {
+      mode: (fixModeInput as FixMode) || config.fix.mode,
+      confidenceThreshold: config.fix.confidence_threshold,
+      createDraftPr: config.fix.create_draft_pr,
+      maxRetryCount: config.fix.max_retry_count,
     },
   }
 }

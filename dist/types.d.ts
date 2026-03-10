@@ -1,6 +1,7 @@
-export type EventType = "pull_request" | "issue" | "issue_comment";
+export type EventType = "pull_request" | "issue" | "issue_comment" | "pull_request_review_comment";
 export type ReviewMode = "review" | "review_and_suggest" | "review_and_patch" | "issue_triage" | "issue_fix" | "manual_only";
-export type ActionType = "pr_review" | "pr_fix" | "issue_triage" | "issue_fix" | "slash_command" | "noop";
+export type ActionType = "pr_review" | "pr_fix" | "issue_triage" | "issue_fix" | "slash_command" | "respond" | "noop";
+export type FixMode = "propose_only" | "propose_and_pr" | "yolo";
 export type FindingSeverity = "low" | "medium" | "high" | "critical";
 export type FindingType = "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
 export type FinalAction = "comment_only" | "request_changes" | "suggest_patch" | "open_fix_pr" | "push_to_branch" | "needs_human_review" | "decline";
@@ -64,6 +65,18 @@ export interface RepoPolicies {
             enabled: boolean;
             model: string;
         };
+    };
+    trigger: {
+        requireLabel: string;
+        respondToMentions: boolean;
+        respondToReplies: boolean;
+        botName: string;
+    };
+    fix: {
+        mode: FixMode;
+        confidenceThreshold: number;
+        createDraftPr: boolean;
+        maxRetryCount: number;
     };
 }
 export interface ReviewFinding {
@@ -136,8 +149,51 @@ export interface RoutedEvent {
     actionType: ActionType;
     context: ReviewContext;
     slashCommand?: SlashCommand;
+    responseContext?: ResponseContext;
+}
+export interface ResponseContext {
+    parentCommentBody: string;
+    replyBody: string;
+    commentId: number;
+    isPRReviewComment: boolean;
 }
 export interface TokenUsage {
     input: number;
     output: number;
+}
+export interface FileChange {
+    path: string;
+    action: "modify" | "create" | "delete";
+    changes?: Array<{
+        search: string;
+        replace: string;
+    }>;
+    content?: string;
+    explanation: string;
+}
+export interface FixPlan {
+    analysis: string;
+    fixable: boolean;
+    confidence: number;
+    files: FileChange[];
+    commitMessage: string;
+    testSuggestions: string[];
+    riskNotes: string[];
+}
+export interface FixResult {
+    success: boolean;
+    fixPlan?: FixPlan;
+    branch?: string;
+    prNumber?: number;
+    prUrl?: string;
+    error?: string;
+}
+export interface CodeContext {
+    files: Array<{
+        path: string;
+        content: string;
+        relevance: string;
+    }>;
+    structure: string;
+    dependencies: string;
 }

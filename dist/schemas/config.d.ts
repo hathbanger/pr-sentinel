@@ -41,6 +41,22 @@ export declare const SentinelConfigSchema: z.ZodObject<{
             model?: string | undefined;
         } | undefined;
     }>>;
+    trigger: z.ZodDefault<z.ZodObject<{
+        require_label: z.ZodDefault<z.ZodString>;
+        respond_to_mentions: z.ZodDefault<z.ZodBoolean>;
+        respond_to_replies: z.ZodDefault<z.ZodBoolean>;
+        bot_name: z.ZodDefault<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        require_label: string;
+        respond_to_mentions: boolean;
+        respond_to_replies: boolean;
+        bot_name: string;
+    }, {
+        require_label?: string | undefined;
+        respond_to_mentions?: boolean | undefined;
+        respond_to_replies?: boolean | undefined;
+        bot_name?: string | undefined;
+    }>>;
     review: z.ZodDefault<z.ZodObject<{
         max_files: z.ZodDefault<z.ZodNumber>;
         max_patch_chars: z.ZodDefault<z.ZodNumber>;
@@ -61,18 +77,18 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         severity_threshold?: "low" | "medium" | "high" | "critical" | undefined;
     }>>;
     fix: z.ZodDefault<z.ZodObject<{
-        allow_auto_fix: z.ZodDefault<z.ZodBoolean>;
-        allow_push_to_pr_branch: z.ZodDefault<z.ZodBoolean>;
+        mode: z.ZodDefault<z.ZodEnum<["propose_only", "propose_and_pr", "yolo"]>>;
+        confidence_threshold: z.ZodDefault<z.ZodNumber>;
         max_retry_count: z.ZodDefault<z.ZodNumber>;
         create_draft_pr: z.ZodDefault<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
-        allow_auto_fix: boolean;
-        allow_push_to_pr_branch: boolean;
+        mode: "propose_only" | "propose_and_pr" | "yolo";
+        confidence_threshold: number;
         max_retry_count: number;
         create_draft_pr: boolean;
     }, {
-        allow_auto_fix?: boolean | undefined;
-        allow_push_to_pr_branch?: boolean | undefined;
+        mode?: "propose_only" | "propose_and_pr" | "yolo" | undefined;
+        confidence_threshold?: number | undefined;
         max_retry_count?: number | undefined;
         create_draft_pr?: boolean | undefined;
     }>>;
@@ -95,6 +111,12 @@ export declare const SentinelConfigSchema: z.ZodObject<{
     }>>;
 }, "strip", z.ZodTypeAny, {
     mode: "issue_triage" | "issue_fix" | "review" | "review_and_suggest" | "review_and_patch" | "manual_only";
+    fix: {
+        mode: "propose_only" | "propose_and_pr" | "yolo";
+        confidence_threshold: number;
+        max_retry_count: number;
+        create_draft_pr: boolean;
+    };
     review: {
         max_files: number;
         max_patch_chars: number;
@@ -115,11 +137,11 @@ export declare const SentinelConfigSchema: z.ZodObject<{
             model: string;
         };
     };
-    fix: {
-        allow_auto_fix: boolean;
-        allow_push_to_pr_branch: boolean;
-        max_retry_count: number;
-        create_draft_pr: boolean;
+    trigger: {
+        require_label: string;
+        respond_to_mentions: boolean;
+        respond_to_replies: boolean;
+        bot_name: string;
     };
     security: {
         restricted_paths: string[];
@@ -127,6 +149,12 @@ export declare const SentinelConfigSchema: z.ZodObject<{
     };
 }, {
     mode?: "issue_triage" | "issue_fix" | "review" | "review_and_suggest" | "review_and_patch" | "manual_only" | undefined;
+    fix?: {
+        mode?: "propose_only" | "propose_and_pr" | "yolo" | undefined;
+        confidence_threshold?: number | undefined;
+        max_retry_count?: number | undefined;
+        create_draft_pr?: boolean | undefined;
+    } | undefined;
     review?: {
         max_files?: number | undefined;
         max_patch_chars?: number | undefined;
@@ -147,11 +175,11 @@ export declare const SentinelConfigSchema: z.ZodObject<{
             model?: string | undefined;
         } | undefined;
     } | undefined;
-    fix?: {
-        allow_auto_fix?: boolean | undefined;
-        allow_push_to_pr_branch?: boolean | undefined;
-        max_retry_count?: number | undefined;
-        create_draft_pr?: boolean | undefined;
+    trigger?: {
+        require_label?: string | undefined;
+        respond_to_mentions?: boolean | undefined;
+        respond_to_replies?: boolean | undefined;
+        bot_name?: string | undefined;
     } | undefined;
     security?: {
         restricted_paths?: string[] | undefined;

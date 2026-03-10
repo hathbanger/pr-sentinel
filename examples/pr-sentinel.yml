@@ -11,6 +11,12 @@ models:
     enabled: true
     model: gpt-4o
 
+trigger:
+  require_label: agent # Only run when this label is present on PR/issue
+  respond_to_mentions: true # Respond when @pr-sentinel is mentioned
+  respond_to_replies: true # Respond to replies on bot comments
+  bot_name: pr-sentinel # Name for @mention detection
+
 review:
   max_files: 50
   max_patch_chars: 200000
@@ -19,10 +25,10 @@ review:
   severity_threshold: medium # low | medium | high | critical
 
 fix:
-  allow_auto_fix: false
-  allow_push_to_pr_branch: false
+  mode: propose_and_pr # propose_only | propose_and_pr | yolo
+  confidence_threshold: 0.7 # Only fix if model confidence exceeds this (0.0-1.0)
   max_retry_count: 2
-  create_draft_pr: true
+  create_draft_pr: true # Create fix PRs as drafts (ignored in yolo mode)
 
 security:
   restricted_paths:

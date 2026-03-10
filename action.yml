@@ -1,6 +1,6 @@
 name: "PR Sentinel"
 description: "Dual-model AI review bot for pull requests and issues using Anthropic + OpenAI"
-author: "402goose"
+author: "hathbanger"
 
 branding:
   icon: "shield"
@@ -32,10 +32,30 @@ inputs:
     description: "OpenAI model to use"
     required: false
     default: "gpt-4o"
+  trigger_label:
+    description: "Label required to trigger reviews/fixes (default: agent)"
+    required: false
+    default: "agent"
+  bot_name:
+    description: "Bot name for @mention detection (default: pr-sentinel)"
+    required: false
+    default: "pr-sentinel"
+  fix_mode:
+    description: "Issue fix mode: propose_only, propose_and_pr, yolo"
+    required: false
+    default: "propose_and_pr"
   debug:
     description: "Enable debug logging"
     required: false
     default: "false"
+
+outputs:
+  review_json:
+    description: "Full review result as JSON"
+  findings_count:
+    description: "Number of findings"
+  action:
+    description: "Decision taken (comment_only, request_changes, etc.)"
 
 runs:
   using: "node20"

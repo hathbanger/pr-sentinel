@@ -35638,6 +35638,242 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 1515:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.analyzeCodebase = analyzeCodebase;
+exports.extractKeywords = extractKeywords;
+const fs = __importStar(__nccwpck_require__(9896));
+const child_process_1 = __nccwpck_require__(5317);
+const core = __importStar(__nccwpck_require__(7484));
+const CODE_EXTENSIONS = [
+    "ts", "tsx", "js", "jsx", "py", "go", "rs", "rb",
+    "java", "kt", "swift", "c", "cpp", "h", "cs",
+];
+const MAX_FILE_SIZE = 50_000;
+const MAX_CONTEXT_FILES = 12;
+async function analyzeCodebase(keywords, maxFiles = MAX_CONTEXT_FILES) {
+    const allFiles = getFileTree();
+    const searchHits = searchForKeywords(keywords, allFiles);
+    const rankedFiles = rankFiles(searchHits, allFiles, keywords);
+    const relevantFiles = readTopFiles(rankedFiles, maxFiles);
+    const structure = getProjectStructure(allFiles);
+    const dependencies = getDependencies();
+    core.info(`Codebase analysis: ${allFiles.length} files, ${keywords.length} keywords, ${relevantFiles.length} relevant files`);
+    return { files: relevantFiles, structure, dependencies };
+}
+function extractKeywords(title, body) {
+    const text = `${title} ${body}`;
+    const codeRefs = text.match(/`([^`]+)`/g)?.map((m) => m.replace(/`/g, "")) || [];
+    const fileRefs = text.match(/[\w/.-]+\.\w{1,5}/g) || [];
+    const fnRefs = text.match(/\b[a-z][a-zA-Z0-9_]+(?=\()/g) || [];
+    const classRefs = text.match(/\b[A-Z][a-zA-Z0-9]+\b/g)?.filter((w) => w.length > 3) || [];
+    const stopwords = new Set([
+        "the", "and", "for", "that", "this", "with", "from", "have", "been",
+        "should", "would", "could", "when", "where", "what", "which", "there",
+        "about", "into", "more", "some", "than", "them", "then", "these",
+        "Error", "Warning", "Issue", "Problem", "Bug", "Feature", "Request",
+        "TODO", "FIXME", "NOTE", "String", "Number", "Boolean", "Object", "Array",
+    ]);
+    const all = [...codeRefs, ...fileRefs, ...fnRefs, ...classRefs];
+    const unique = [...new Set(all)].filter((k) => k.length > 2 && !stopwords.has(k));
+    return unique.slice(0, 20);
+}
+function getFileTree() {
+    try {
+        return (0, child_process_1.execSync)("git ls-files", { encoding: "utf-8", timeout: 5000 })
+            .split("\n")
+            .filter((f) => f && !f.startsWith(".git"));
+    }
+    catch {
+        try {
+            return (0, child_process_1.execSync)("find . -type f -not -path './.git/*' -not -path './node_modules/*' | head -2000", {
+                encoding: "utf-8",
+                timeout: 5000,
+            })
+                .split("\n")
+                .filter(Boolean)
+                .map((f) => f.replace(/^\.\//, ""));
+        }
+        catch {
+            return [];
+        }
+    }
+}
+function searchForKeywords(keywords, _files) {
+    const hits = [];
+    const extGlob = CODE_EXTENSIONS.map((e) => `--include='*.${e}'`).join(" ");
+    for (const keyword of keywords) {
+        const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        try {
+            const output = (0, child_process_1.execSync)(`grep -rn ${extGlob} -i "${escaped}" . 2>/dev/null | head -30`, { encoding: "utf-8", timeout: 5000 });
+            for (const line of output.split("\n").filter(Boolean)) {
+                const match = line.match(/^\.\/(.+):(\d+):(.+)$/);
+                if (match) {
+                    hits.push({
+                        file: match[1],
+                        line: parseInt(match[2]),
+                        text: match[3].trim(),
+                        keyword,
+                    });
+                }
+            }
+        }
+        catch {
+            // no matches
+        }
+    }
+    return hits;
+}
+function rankFiles(hits, allFiles, keywords) {
+    const scores = new Map();
+    for (const hit of hits) {
+        const existing = scores.get(hit.file) || { score: 0, reasons: [] };
+        existing.score += 1;
+        if (!existing.reasons.includes(hit.keyword)) {
+            existing.reasons.push(hit.keyword);
+        }
+        scores.set(hit.file, existing);
+    }
+    for (const keyword of keywords) {
+        for (const file of allFiles) {
+            const basename = file.split("/").pop() || "";
+            if (basename.toLowerCase().includes(keyword.toLowerCase())) {
+                const existing = scores.get(file) || { score: 0, reasons: [] };
+                existing.score += 3;
+                existing.reasons.push(`filename match: ${keyword}`);
+                scores.set(file, existing);
+            }
+        }
+    }
+    return Array.from(scores.entries())
+        .map(([path, { score, reasons }]) => ({
+        path,
+        score,
+        relevance: reasons.slice(0, 3).join(", "),
+    }))
+        .sort((a, b) => b.score - a.score);
+}
+function readTopFiles(ranked, maxFiles) {
+    const result = [];
+    for (const file of ranked.slice(0, maxFiles)) {
+        try {
+            const stat = fs.statSync(file.path);
+            if (stat.size > MAX_FILE_SIZE) {
+                result.push({
+                    path: file.path,
+                    content: `[File too large: ${stat.size} bytes — showing first ${MAX_FILE_SIZE} chars]\n` +
+                        fs.readFileSync(file.path, "utf-8").substring(0, MAX_FILE_SIZE),
+                    relevance: file.relevance,
+                });
+            }
+            else {
+                result.push({
+                    path: file.path,
+                    content: fs.readFileSync(file.path, "utf-8"),
+                    relevance: file.relevance,
+                });
+            }
+        }
+        catch {
+            core.debug(`Could not read ${file.path}`);
+        }
+    }
+    return result;
+}
+function getProjectStructure(files) {
+    const dirs = new Set();
+    for (const f of files) {
+        const parts = f.split("/");
+        for (let i = 1; i <= Math.min(parts.length - 1, 3); i++) {
+            dirs.add(parts.slice(0, i).join("/") + "/");
+        }
+    }
+    const sorted = Array.from(dirs).sort();
+    const codeFiles = files.filter((f) => CODE_EXTENSIONS.some((ext) => f.endsWith(`.${ext}`)));
+    const lines = [];
+    lines.push(`Total files: ${files.length} (${codeFiles.length} code files)`);
+    lines.push("");
+    lines.push("Directories:");
+    for (const dir of sorted.slice(0, 40)) {
+        const count = files.filter((f) => f.startsWith(dir)).length;
+        lines.push(`  ${dir} (${count} files)`);
+    }
+    return lines.join("\n");
+}
+function getDependencies() {
+    const parts = [];
+    if (fs.existsSync("package.json")) {
+        try {
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf-8"));
+            const deps = Object.keys(pkg.dependencies || {});
+            const devDeps = Object.keys(pkg.devDependencies || {});
+            parts.push(`Node.js project: ${pkg.name || "unnamed"}`);
+            if (deps.length)
+                parts.push(`Dependencies: ${deps.join(", ")}`);
+            if (devDeps.length)
+                parts.push(`Dev dependencies: ${devDeps.join(", ")}`);
+        }
+        catch { /* */ }
+    }
+    if (fs.existsSync("requirements.txt")) {
+        try {
+            const reqs = fs.readFileSync("requirements.txt", "utf-8").split("\n").filter(Boolean).slice(0, 20);
+            parts.push(`Python dependencies: ${reqs.join(", ")}`);
+        }
+        catch { /* */ }
+    }
+    if (fs.existsSync("go.mod")) {
+        parts.push("Go module project");
+    }
+    if (fs.existsSync("Cargo.toml")) {
+        parts.push("Rust/Cargo project");
+    }
+    if (fs.existsSync("tsconfig.json")) {
+        parts.push("TypeScript enabled");
+    }
+    return parts.join("\n") || "No dependency info found";
+}
+
+
+/***/ }),
+
 /***/ 788:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -35820,6 +36056,344 @@ function mapFileStatus(status) {
 
 /***/ }),
 
+/***/ 1343:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.fixIssue = fixIssue;
+const core = __importStar(__nccwpck_require__(7484));
+const github = __importStar(__nccwpck_require__(3228));
+const child_process_1 = __nccwpck_require__(5317);
+const fs = __importStar(__nccwpck_require__(9896));
+const codebase_1 = __nccwpck_require__(1515);
+const fix_1 = __nccwpck_require__(5923);
+const PLAN_SYSTEM = `You are a senior engineer analyzing a bug report for a software project.
+
+Given the issue description and relevant source code, produce a fix plan.
+
+Rules:
+1. Be conservative — only propose changes you are confident will fix the issue
+2. Use search/replace pairs for modifications so changes can be applied precisely
+3. The "search" string must be an EXACT substring of the current file contents
+4. Keep changes minimal — fix the bug, don't refactor
+5. If you cannot determine a fix from the available context, set fixable=false
+
+Output a JSON object (no markdown fences):
+{
+  "analysis": "your understanding of the issue and root cause",
+  "fixable": true/false,
+  "confidence": 0.0-1.0,
+  "files": [
+    {
+      "path": "path/to/file",
+      "action": "modify|create|delete",
+      "changes": [{"search": "exact text to find", "replace": "replacement text"}],
+      "content": "full content for new files only",
+      "explanation": "why this change fixes the issue"
+    }
+  ],
+  "commit_message": "fix: description (fixes #N)",
+  "test_suggestions": ["test cases that should verify the fix"],
+  "risk_notes": ["potential risks or side effects"]
+}`;
+const REVIEW_SYSTEM = `You are a senior engineer reviewing a proposed bug fix.
+
+Given:
+- The original issue
+- The proposed code changes
+- The relevant source code
+
+Evaluate whether the fix:
+1. Actually addresses the root cause
+2. Handles edge cases
+3. Could break anything else
+4. Is the minimal correct change
+
+Output a JSON object (no markdown fences):
+{
+  "approved": true/false,
+  "confidence": 0.0-1.0,
+  "concerns": ["any concerns about the fix"],
+  "verdict": "brief assessment"
+}`;
+async function fixIssue(ctx, anthropic, openai, octokit, mode, confidenceThreshold) {
+    if (!ctx.issue)
+        return { success: false, error: "No issue context" };
+    const planner = anthropic || openai;
+    const reviewer = anthropic && openai ? openai : planner;
+    if (!planner)
+        return { success: false, error: "No model available" };
+    core.info(`Analyzing issue #${ctx.issue.number}: ${ctx.issue.title}`);
+    const keywords = (0, codebase_1.extractKeywords)(ctx.issue.title, ctx.issue.body);
+    core.info(`Extracted ${keywords.length} keywords: ${keywords.slice(0, 5).join(", ")}`);
+    const codeContext = await (0, codebase_1.analyzeCodebase)(keywords);
+    if (codeContext.files.length === 0) {
+        return { success: false, error: "Could not find relevant code for this issue" };
+    }
+    const fixPlan = await generateFixPlan(planner, ctx, codeContext);
+    if (!fixPlan.fixable) {
+        return { success: false, fixPlan, error: `Issue not fixable: ${fixPlan.analysis}` };
+    }
+    if (fixPlan.confidence < confidenceThreshold) {
+        return {
+            success: false,
+            fixPlan,
+            error: `Confidence too low: ${(fixPlan.confidence * 100).toFixed(0)}% (threshold: ${(confidenceThreshold * 100).toFixed(0)}%)`,
+        };
+    }
+    if (reviewer && reviewer !== planner) {
+        const reviewResult = await reviewFixPlan(reviewer, ctx, fixPlan, codeContext);
+        if (!reviewResult.approved) {
+            core.warning(`Fix review rejected: ${reviewResult.verdict}`);
+            fixPlan.riskNotes.push(`Review concerns: ${reviewResult.concerns.join("; ")}`);
+            if (reviewResult.confidence < 0.5) {
+                return {
+                    success: false,
+                    fixPlan,
+                    error: `Fix rejected by reviewer: ${reviewResult.verdict}`,
+                };
+            }
+        }
+    }
+    if (mode === "propose_only") {
+        core.info("Propose-only mode — returning fix plan without applying");
+        return { success: true, fixPlan };
+    }
+    const branch = await createFixBranch(ctx.issue.number);
+    try {
+        await applyChanges(fixPlan);
+        await commitAndPush(branch, fixPlan.commitMessage);
+        const pr = await createFixPR(octokit, ctx, fixPlan, branch);
+        core.info(`Fix PR created: ${pr.url}`);
+        if (mode === "yolo") {
+            core.info("Yolo mode — auto-merging fix PR");
+            await mergeFixPR(octokit, pr.number);
+        }
+        return {
+            success: true,
+            fixPlan,
+            branch,
+            prNumber: pr.number,
+            prUrl: pr.url,
+        };
+    }
+    catch (err) {
+        core.warning(`Failed to apply fix: ${err}`);
+        try {
+            (0, child_process_1.execSync)(`git checkout ${ctx.repository.defaultBranch} 2>/dev/null || git checkout main`, { encoding: "utf-8" });
+            (0, child_process_1.execSync)(`git branch -D ${branch} 2>/dev/null`, { encoding: "utf-8" });
+        }
+        catch { /* cleanup best effort */ }
+        return {
+            success: false,
+            fixPlan,
+            error: `Failed to apply changes: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+}
+async function generateFixPlan(model, ctx, codeContext) {
+    const issue = ctx.issue;
+    const filesContext = codeContext.files
+        .map((f) => `### ${f.path}\nRelevance: ${f.relevance}\n\`\`\`\n${f.content}\n\`\`\``)
+        .join("\n\n");
+    const prompt = [
+        `# Issue #${issue.number}: ${issue.title}`,
+        "",
+        issue.body,
+        "",
+        "## Project Structure",
+        codeContext.structure,
+        "",
+        "## Dependencies",
+        codeContext.dependencies,
+        "",
+        "## Relevant Source Files",
+        filesContext,
+    ].join("\n");
+    const result = await model.chat(PLAN_SYSTEM, prompt);
+    const parsed = (0, fix_1.parseFixPlan)(result.text);
+    return {
+        analysis: parsed.analysis,
+        fixable: parsed.fixable,
+        confidence: parsed.confidence,
+        files: parsed.files.map((f) => ({
+            path: f.path,
+            action: f.action,
+            changes: f.changes,
+            content: f.content,
+            explanation: f.explanation,
+        })),
+        commitMessage: parsed.commit_message,
+        testSuggestions: parsed.test_suggestions,
+        riskNotes: parsed.risk_notes,
+    };
+}
+async function reviewFixPlan(model, ctx, plan, codeContext) {
+    const issue = ctx.issue;
+    const changesDescription = plan.files
+        .map((f) => `${f.path} (${f.action}): ${f.explanation}`)
+        .join("\n");
+    const prompt = [
+        `# Original Issue #${issue.number}: ${issue.title}`,
+        issue.body,
+        "",
+        "# Proposed Fix",
+        `Analysis: ${plan.analysis}`,
+        `Confidence: ${plan.confidence}`,
+        "",
+        "## Changes",
+        changesDescription,
+        "",
+        "## Detailed Changes",
+        JSON.stringify(plan.files, null, 2),
+        "",
+        "## Relevant Code Context",
+        codeContext.files.slice(0, 5).map((f) => `### ${f.path}\n\`\`\`\n${f.content.substring(0, 3000)}\n\`\`\``).join("\n\n"),
+    ].join("\n");
+    try {
+        const result = await model.chat(REVIEW_SYSTEM, prompt);
+        const parsed = (0, fix_1.parseFixReview)(result.text);
+        return parsed;
+    }
+    catch {
+        return { approved: true, confidence: 0.5, concerns: ["Review parsing failed"], verdict: "Proceeding with caution" };
+    }
+}
+async function createFixBranch(issueNumber) {
+    const branch = `fix/issue-${issueNumber}`;
+    (0, child_process_1.execSync)(`git checkout -b ${branch}`, { encoding: "utf-8" });
+    return branch;
+}
+async function applyChanges(plan) {
+    for (const file of plan.files) {
+        if (file.action === "delete") {
+            if (fs.existsSync(file.path)) {
+                fs.unlinkSync(file.path);
+                core.info(`Deleted: ${file.path}`);
+            }
+            continue;
+        }
+        if (file.action === "create") {
+            const dir = file.path.split("/").slice(0, -1).join("/");
+            if (dir)
+                fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(file.path, file.content || "");
+            core.info(`Created: ${file.path}`);
+            continue;
+        }
+        if (file.action === "modify" && file.changes) {
+            if (!fs.existsSync(file.path)) {
+                throw new Error(`File not found: ${file.path}`);
+            }
+            let content = fs.readFileSync(file.path, "utf-8");
+            for (const change of file.changes) {
+                if (!content.includes(change.search)) {
+                    throw new Error(`Search text not found in ${file.path}: "${change.search.substring(0, 60)}..."`);
+                }
+                content = content.replace(change.search, change.replace);
+            }
+            fs.writeFileSync(file.path, content);
+            core.info(`Modified: ${file.path} (${file.changes.length} change(s))`);
+        }
+    }
+}
+async function commitAndPush(branch, message) {
+    (0, child_process_1.execSync)('git config user.name "pr-sentinel[bot]"', { encoding: "utf-8" });
+    (0, child_process_1.execSync)('git config user.email "pr-sentinel[bot]@users.noreply.github.com"', { encoding: "utf-8" });
+    (0, child_process_1.execSync)("git add -A", { encoding: "utf-8" });
+    (0, child_process_1.execSync)(`git commit -m "${message.replace(/"/g, '\\"')}"`, { encoding: "utf-8" });
+    (0, child_process_1.execSync)(`git push origin ${branch}`, { encoding: "utf-8" });
+}
+async function createFixPR(octokit, ctx, plan, branch) {
+    const { owner, name: repo } = ctx.repository;
+    const issue = ctx.issue;
+    const body = [
+        `Fixes #${issue.number}`,
+        "",
+        "## Analysis",
+        plan.analysis,
+        "",
+        "## Changes",
+        ...plan.files.map((f) => `- **${f.path}** (${f.action}): ${f.explanation}`),
+        "",
+        plan.riskNotes.length > 0
+            ? `## Risk Notes\n${plan.riskNotes.map((n) => `- ⚠️ ${n}`).join("\n")}`
+            : "",
+        "",
+        plan.testSuggestions.length > 0
+            ? `## Suggested Tests\n${plan.testSuggestions.map((t) => `- [ ] ${t}`).join("\n")}`
+            : "",
+        "",
+        `---`,
+        `*Generated by PR Sentinel · Confidence: ${(plan.confidence * 100).toFixed(0)}%*`,
+    ]
+        .filter(Boolean)
+        .join("\n");
+    const { data: pr } = await octokit.rest.pulls.create({
+        owner,
+        repo,
+        title: plan.commitMessage,
+        body,
+        head: branch,
+        base: ctx.repository.defaultBranch,
+        draft: ctx.repoPolicies.fix.createDraftPr,
+    });
+    return { number: pr.number, url: pr.html_url };
+}
+async function mergeFixPR(octokit, prNumber) {
+    const { owner, repo } = github.context.repo;
+    try {
+        await octokit.rest.pulls.merge({
+            owner,
+            repo,
+            pull_number: prNumber,
+            merge_method: "squash",
+        });
+        core.info(`Auto-merged PR #${prNumber} (yolo mode)`);
+    }
+    catch (err) {
+        core.warning(`Auto-merge failed for PR #${prNumber}: ${err}`);
+    }
+}
+
+
+/***/ }),
+
 /***/ 9407:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -35866,6 +36440,8 @@ const context_1 = __nccwpck_require__(788);
 const policy_1 = __nccwpck_require__(3618);
 const orchestrator_1 = __nccwpck_require__(1519);
 const reporter_1 = __nccwpck_require__(5622);
+const fixer_1 = __nccwpck_require__(1343);
+const responder_1 = __nccwpck_require__(7873);
 const anthropic_1 = __nccwpck_require__(9654);
 const openai_1 = __nccwpck_require__(1502);
 async function run() {
@@ -35898,13 +36474,13 @@ async function run() {
             anthropic = new anthropic_1.AnthropicClient(anthropicKey, policies.models.anthropic.model);
         }
         else {
-            core.warning("Anthropic disabled or no API key — running without architecture review");
+            core.warning("Anthropic disabled or no API key");
         }
         if (openaiKey && policies.models.openai.enabled) {
             openai = new openai_1.OpenAIClient(openaiKey, policies.models.openai.model);
         }
         else {
-            core.warning("OpenAI disabled or no API key — running without implementation review");
+            core.warning("OpenAI disabled or no API key");
         }
         if (!anthropic && !openai) {
             core.setFailed("At least one model must be configured (anthropic_api_key or openai_api_key)");
@@ -35915,18 +36491,41 @@ async function run() {
                 await handlePRReview(octokit, routed.context, anthropic, openai, debug);
                 break;
             }
+            case "issue_fix": {
+                await handleIssueFix(octokit, routed.context, anthropic, openai, debug);
+                break;
+            }
             case "issue_triage": {
                 await handleIssueTriage(octokit, routed.context);
                 break;
             }
-            case "pr_fix":
-            case "issue_fix": {
-                core.info(`${routed.actionType} is not yet implemented (Phase 2+)`);
+            case "respond": {
+                if (routed.responseContext) {
+                    const model = anthropic || openai;
+                    await (0, responder_1.handleResponse)(routed.context, routed.responseContext, model, octokit);
+                }
+                break;
+            }
+            case "pr_fix": {
+                core.info("PR fix mode not yet implemented (Phase 2)");
                 break;
             }
             case "slash_command": {
                 const cmd = routed.slashCommand;
-                core.info(`Slash command received: /bot ${cmd?.command} (Phase 1+)`);
+                if (cmd?.command === "fix") {
+                    if (cmd.isPR) {
+                        core.info("PR fix via slash command not yet implemented");
+                    }
+                    else {
+                        await handleIssueFix(octokit, routed.context, anthropic, openai, debug);
+                    }
+                }
+                else if (cmd?.command === "review" && cmd.isPR) {
+                    await handlePRReview(octokit, routed.context, anthropic, openai, debug);
+                }
+                else {
+                    core.info(`Slash command /bot ${cmd?.command} — not yet implemented`);
+                }
                 break;
             }
         }
@@ -35969,15 +36568,32 @@ async function handlePRReview(octokit, ctx, anthropic, openai, debug) {
     }
     await (0, reporter_1.reportReview)(octokit, decision, ctx.pullRequest.number);
 }
+async function handleIssueFix(octokit, ctx, anthropic, openai, debug) {
+    if (!ctx.issue) {
+        core.warning("No issue context available");
+        return;
+    }
+    ctx = await (0, context_1.buildIssueContext)(ctx, octokit);
+    if (debug) {
+        core.info(`Fixing issue #${ctx.issue.number}: ${ctx.issue.title}`);
+    }
+    const { mode, confidenceThreshold } = ctx.repoPolicies.fix;
+    const result = await (0, fixer_1.fixIssue)(ctx, anthropic, openai, octokit, mode, confidenceThreshold);
+    await (0, reporter_1.reportFixResult)(octokit, ctx.issue.number, result, mode);
+    if (result.success) {
+        core.info(`Fix ${mode === "propose_only" ? "proposed" : "applied"} for issue #${ctx.issue.number}`);
+    }
+    else {
+        core.warning(`Fix failed for issue #${ctx.issue.number}: ${result.error}`);
+    }
+}
 async function handleIssueTriage(octokit, ctx) {
     if (!ctx.issue) {
         core.warning("No issue context available");
         return;
     }
     ctx = await (0, context_1.buildIssueContext)(ctx, octokit);
-    core.info(`Issue #${ctx.issue.number} triage: not yet implemented (Phase 0.5)`);
-    core.info(`Title: ${ctx.issue.title}`);
-    core.info(`Labels: ${ctx.issue.labels.join(", ") || "none"}`);
+    core.info(`Issue #${ctx.issue.number} triage: routing to fix flow`);
 }
 run();
 
@@ -36146,6 +36762,9 @@ class AnthropicClient {
             },
             usage: response.usage,
         };
+    }
+    async chat(system, user) {
+        return this.call(system, user);
     }
     async call(system, user, retries = 1) {
         for (let attempt = 0; attempt <= retries; attempt++) {
@@ -36385,6 +37004,9 @@ class OpenAIClient {
             },
             usage: response.usage,
         };
+    }
+    async chat(system, user) {
+        return this.call(system, user);
     }
     async call(system, user, retries = 1) {
         for (let attempt = 0; attempt <= retries; attempt++) {
@@ -36783,9 +37405,12 @@ async function loadPolicies(octokit, configPath, modeOverride) {
     const mode = modeOverride || config.mode;
     const anthropicModel = core.getInput("anthropic_model") || config.models.anthropic.model;
     const openaiModel = core.getInput("openai_model") || config.models.openai.model;
+    const botNameInput = core.getInput("bot_name");
+    const fixModeInput = core.getInput("fix_mode");
+    const triggerLabelInput = core.getInput("trigger_label");
     return {
         mode,
-        autoFixEnabled: config.fix.allow_auto_fix,
+        autoFixEnabled: config.fix.mode !== "propose_only",
         restrictedPaths: config.security.restricted_paths,
         testCommands: config.validation.commands,
         maxFiles: config.review.max_files,
@@ -36799,6 +37424,18 @@ async function loadPolicies(octokit, configPath, modeOverride) {
         models: {
             anthropic: { enabled: config.models.anthropic.enabled, model: anthropicModel },
             openai: { enabled: config.models.openai.enabled, model: openaiModel },
+        },
+        trigger: {
+            requireLabel: triggerLabelInput || config.trigger.require_label,
+            respondToMentions: config.trigger.respond_to_mentions,
+            respondToReplies: config.trigger.respond_to_replies,
+            botName: botNameInput || config.trigger.bot_name,
+        },
+        fix: {
+            mode: fixModeInput || config.fix.mode,
+            confidenceThreshold: config.fix.confidence_threshold,
+            createDraftPr: config.fix.create_draft_pr,
+            maxRetryCount: config.fix.max_retry_count,
         },
     };
 }
@@ -36909,6 +37546,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.reportReview = reportReview;
 exports.reportIssueTriage = reportIssueTriage;
+exports.reportFixResult = reportFixResult;
 exports.reportFailure = reportFailure;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
@@ -36972,6 +37610,81 @@ async function reportIssueTriage(octokit, issueNumber, classification, summary) 
         "---",
         "*Triaged by PR Sentinel*",
     ].join("\n");
+    await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
+}
+async function reportFixResult(octokit, issueNumber, result, mode) {
+    const { owner, repo } = github.context.repo;
+    const lines = [COMMENT_MARKER];
+    if (result.success && result.fixPlan) {
+        const plan = result.fixPlan;
+        const modeLabel = mode === "propose_only" ? "Proposed Fix" :
+            mode === "propose_and_pr" ? "Fix PR Created" :
+                "Fix Applied (Auto-merged)";
+        lines.push(`## PR Sentinel — ${modeLabel} ✅`);
+        lines.push("");
+        lines.push(`**Confidence:** ${(plan.confidence * 100).toFixed(0)}%`);
+        lines.push("");
+        lines.push("### Analysis");
+        lines.push(plan.analysis);
+        lines.push("");
+        lines.push("### Changes");
+        for (const file of plan.files) {
+            lines.push("");
+            lines.push(`#### \`${file.path}\` (${file.action})`);
+            lines.push(file.explanation);
+            if (file.changes && file.changes.length > 0) {
+                lines.push("");
+                lines.push("<details>");
+                lines.push("<summary>View changes</summary>");
+                lines.push("");
+                for (const change of file.changes) {
+                    lines.push("```diff");
+                    lines.push(`- ${change.search.split("\n").join("\n- ")}`);
+                    lines.push(`+ ${change.replace.split("\n").join("\n+ ")}`);
+                    lines.push("```");
+                }
+                lines.push("");
+                lines.push("</details>");
+            }
+        }
+        if (plan.testSuggestions.length > 0) {
+            lines.push("");
+            lines.push("### Suggested Tests");
+            for (const t of plan.testSuggestions)
+                lines.push(`- [ ] ${t}`);
+        }
+        if (plan.riskNotes.length > 0) {
+            lines.push("");
+            lines.push("### Risk Notes");
+            for (const r of plan.riskNotes)
+                lines.push(`- ⚠️ ${r}`);
+        }
+        if (result.prUrl) {
+            lines.push("");
+            lines.push(`### Pull Request`);
+            lines.push(`→ ${result.prUrl}`);
+        }
+    }
+    else {
+        lines.push("## PR Sentinel — Fix Analysis ℹ️");
+        lines.push("");
+        lines.push(`Could not generate a fix: ${result.error}`);
+        if (result.fixPlan) {
+            lines.push("");
+            lines.push("### Analysis");
+            lines.push(result.fixPlan.analysis);
+            if (result.fixPlan.confidence > 0) {
+                lines.push("");
+                lines.push(`Confidence was ${(result.fixPlan.confidence * 100).toFixed(0)}% (below threshold).`);
+            }
+        }
+    }
+    lines.push("");
+    lines.push("---");
+    lines.push("*Did we get this right? 👍 / 👎 to inform future fixes*");
+    lines.push("");
+    lines.push("*PR Sentinel*");
+    const body = lines.join("\n");
     await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
 }
 async function reportFailure(octokit, prOrIssueNumber, error) {
@@ -37329,6 +38042,175 @@ function setOutputs(decision) {
 
 /***/ }),
 
+/***/ 7873:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.handleResponse = handleResponse;
+const core = __importStar(__nccwpck_require__(7484));
+const github = __importStar(__nccwpck_require__(3228));
+const RESPOND_SYSTEM = `You are PR Sentinel, an AI code review bot responding to a developer's question or comment about a code review finding.
+
+Guidelines:
+1. If they point out your finding was wrong, acknowledge it clearly
+2. If they ask for clarification, provide specific code-level detail
+3. If they ask you to fix something, describe the fix precisely
+4. If they disagree, engage constructively with their reasoning
+5. Be concise and direct — developers don't want fluff
+6. Reference specific files and line numbers when relevant
+
+Do NOT output JSON. Respond in plain markdown as a conversation reply.`;
+async function handleResponse(ctx, responseContext, model, octokit) {
+    const { owner, repo } = github.context.repo;
+    const parentBody = await resolveParentComment(octokit, responseContext);
+    const contextParts = [];
+    if (parentBody) {
+        contextParts.push(`## Original PR Sentinel Comment\n${parentBody}`);
+    }
+    if (ctx.pullRequest) {
+        contextParts.push(`## PR Context\nPR #${ctx.pullRequest.number}: ${ctx.pullRequest.title}\n${ctx.pullRequest.body || ""}`);
+    }
+    if (ctx.issue) {
+        contextParts.push(`## Issue Context\nIssue #${ctx.issue.number}: ${ctx.issue.title}\n${ctx.issue.body || ""}`);
+    }
+    const prompt = [
+        ...contextParts,
+        "",
+        "## Developer's Comment",
+        responseContext.replyBody,
+    ].join("\n\n");
+    core.info("Generating response to developer comment");
+    const result = await model.chat(RESPOND_SYSTEM, prompt);
+    const responseBody = formatResponse(result.text);
+    if (responseContext.isPRReviewComment) {
+        await replyToReviewComment(octokit, responseContext.commentId, responseBody);
+    }
+    else {
+        const issueNumber = ctx.pullRequest?.number || ctx.issue?.number;
+        if (issueNumber) {
+            await octokit.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body: responseBody,
+            });
+        }
+    }
+    core.info("Response posted");
+}
+async function resolveParentComment(octokit, responseContext) {
+    if (responseContext.parentCommentBody) {
+        return responseContext.parentCommentBody;
+    }
+    const { owner, repo } = github.context.repo;
+    if (responseContext.isPRReviewComment) {
+        const inReplyToId = github.context.payload.comment?.in_reply_to_id;
+        if (inReplyToId) {
+            try {
+                const { data: parent } = await octokit.rest.pulls.getReviewComment({
+                    owner,
+                    repo,
+                    comment_id: inReplyToId,
+                });
+                return parent.body || "";
+            }
+            catch {
+                core.debug(`Could not fetch parent review comment ${inReplyToId}`);
+            }
+        }
+    }
+    else {
+        const issueNumber = github.context.payload.issue?.number;
+        if (issueNumber) {
+            try {
+                const { data: comments } = await octokit.rest.issues.listComments({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                    per_page: 10,
+                });
+                for (let i = comments.length - 1; i >= 0; i--) {
+                    if (comments[i].body?.includes("PR Sentinel") && comments[i].id !== responseContext.commentId) {
+                        return comments[i].body || "";
+                    }
+                }
+            }
+            catch {
+                core.debug("Could not fetch previous comments");
+            }
+        }
+    }
+    return "";
+}
+async function replyToReviewComment(octokit, commentId, body) {
+    const { owner, repo } = github.context.repo;
+    const prNumber = github.context.payload.pull_request?.number;
+    if (!prNumber) {
+        core.warning("No PR number for review comment reply");
+        return;
+    }
+    try {
+        await octokit.rest.pulls.createReplyForReviewComment({
+            owner,
+            repo,
+            pull_number: prNumber,
+            comment_id: commentId,
+            body,
+        });
+    }
+    catch (err) {
+        core.warning(`Could not reply to review comment, posting as issue comment: ${err}`);
+        await octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: prNumber,
+            body,
+        });
+    }
+}
+function formatResponse(text) {
+    const cleaned = text.trim();
+    return `${cleaned}\n\n---\n*PR Sentinel*`;
+}
+
+
+/***/ }),
+
 /***/ 8954:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -37372,6 +38254,7 @@ exports.routeEvent = routeEvent;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
 const SLASH_COMMANDS = ["review", "fix", "triage", "plan", "explain", "retry", "ignore", "security-review", "tests"];
+const BOT_MARKER = "PR Sentinel";
 function routeEvent(policies) {
     const { context } = github;
     const eventName = context.eventName;
@@ -37393,13 +38276,16 @@ function routeEvent(policies) {
         repoPolicies: policies,
     };
     if (eventName === "pull_request") {
-        return routePullRequest(baseContext, action);
+        return routePullRequest(baseContext, action, policies);
     }
     if (eventName === "issues") {
-        return routeIssue(baseContext, action);
+        return routeIssue(baseContext, action, policies);
     }
     if (eventName === "issue_comment") {
-        return routeComment(baseContext);
+        return routeComment(baseContext, policies);
+    }
+    if (eventName === "pull_request_review_comment") {
+        return routeReviewComment(baseContext, policies);
     }
     if (eventName === "workflow_dispatch") {
         return { actionType: "pr_review", context: baseContext };
@@ -37407,71 +38293,169 @@ function routeEvent(policies) {
     core.info(`Unhandled event: ${eventName}`);
     return { actionType: "noop", context: baseContext };
 }
-function routePullRequest(ctx, action) {
-    if (["opened", "synchronize", "reopened"].includes(action)) {
-        const pr = github.context.payload.pull_request;
-        if (pr) {
-            ctx.pullRequest = {
-                number: pr.number,
-                title: pr.title || "",
-                body: pr.body || "",
-                baseRef: pr.base?.ref || "main",
-                headRef: pr.head?.ref || "",
-                labels: (pr.labels || []).map((l) => l.name),
-                changedFiles: [],
-            };
+// ── Pull Request Events ──
+function routePullRequest(ctx, action, policies) {
+    const pr = github.context.payload.pull_request;
+    if (!pr)
+        return { actionType: "noop", context: ctx };
+    const labels = (pr.labels || []).map((l) => l.name);
+    if (action === "labeled") {
+        const addedLabel = github.context.payload.label?.name || "";
+        if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
+            return { actionType: "noop", context: ctx };
         }
-        return { actionType: "pr_review", context: ctx };
     }
-    return { actionType: "noop", context: ctx };
-}
-function routeIssue(ctx, action) {
-    if (action === "opened") {
-        const issue = github.context.payload.issue;
-        if (issue) {
-            ctx.issue = {
-                number: issue.number,
-                title: issue.title || "",
-                body: issue.body || "",
-                labels: (issue.labels || []).map((l) => l.name),
-            };
+    else if (["opened", "synchronize", "reopened"].includes(action)) {
+        if (!hasLabel(labels, policies.trigger.requireLabel)) {
+            core.info(`PR #${pr.number} missing "${policies.trigger.requireLabel}" label — skipping`);
+            return { actionType: "noop", context: ctx };
         }
-        return { actionType: "issue_triage", context: ctx };
     }
-    return { actionType: "noop", context: ctx };
+    else {
+        return { actionType: "noop", context: ctx };
+    }
+    ctx.pullRequest = {
+        number: pr.number,
+        title: pr.title || "",
+        body: pr.body || "",
+        baseRef: pr.base?.ref || "main",
+        headRef: pr.head?.ref || "",
+        labels,
+        changedFiles: [],
+    };
+    return { actionType: "pr_review", context: ctx };
 }
-function routeComment(ctx) {
+// ── Issue Events ──
+function routeIssue(ctx, action, policies) {
+    const issue = github.context.payload.issue;
+    if (!issue)
+        return { actionType: "noop", context: ctx };
+    const labels = (issue.labels || []).map((l) => l.name);
+    if (action === "labeled") {
+        const addedLabel = github.context.payload.label?.name || "";
+        if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
+            return { actionType: "noop", context: ctx };
+        }
+    }
+    else if (action === "opened") {
+        if (!hasLabel(labels, policies.trigger.requireLabel)) {
+            core.info(`Issue #${issue.number} missing "${policies.trigger.requireLabel}" label — skipping`);
+            return { actionType: "noop", context: ctx };
+        }
+    }
+    else {
+        return { actionType: "noop", context: ctx };
+    }
+    ctx.issue = {
+        number: issue.number,
+        title: issue.title || "",
+        body: issue.body || "",
+        labels,
+    };
+    return { actionType: "issue_fix", context: ctx };
+}
+// ── Issue / PR Comment Events ──
+function routeComment(ctx, policies) {
     const comment = github.context.payload.comment;
     const issue = github.context.payload.issue;
     if (!comment || !issue)
         return { actionType: "noop", context: ctx };
     const body = (comment.body || "").trim();
     const isPR = !!issue.pull_request;
+    const labels = (issue.labels || []).map((l) => l.name);
+    const hasAgentLabel = hasLabel(labels, policies.trigger.requireLabel);
+    const botName = policies.trigger.botName;
     const slashCommand = parseSlashCommand(body, ctx.event.actor, issue.number, isPR);
     if (slashCommand) {
         const actionType = resolveCommandAction(slashCommand, isPR);
-        if (isPR) {
-            ctx.pullRequest = {
-                number: issue.number,
-                title: issue.title || "",
-                body: issue.body || "",
-                baseRef: "",
-                headRef: "",
-                labels: (issue.labels || []).map((l) => l.name),
-                changedFiles: [],
-            };
-        }
-        else {
-            ctx.issue = {
-                number: issue.number,
-                title: issue.title || "",
-                body: issue.body || "",
-                labels: (issue.labels || []).map((l) => l.name),
-            };
-        }
+        attachIssueOrPR(ctx, issue, isPR);
         return { actionType, context: ctx, slashCommand };
     }
+    const mentioned = isMentioned(body, botName);
+    if (mentioned) {
+        attachIssueOrPR(ctx, issue, isPR);
+        const actionType = isPR ? "pr_review" : "issue_fix";
+        core.info(`@${botName} mentioned in comment on ${isPR ? "PR" : "issue"} #${issue.number}`);
+        return { actionType, context: ctx };
+    }
+    if (policies.trigger.respondToReplies && hasAgentLabel) {
+        const isReplyToBot = isBotComment(comment.body, body);
+        if (isReplyToBot) {
+            attachIssueOrPR(ctx, issue, isPR);
+            const responseContext = {
+                parentCommentBody: "",
+                replyBody: body,
+                commentId: comment.id,
+                isPRReviewComment: false,
+            };
+            return { actionType: "respond", context: ctx, responseContext };
+        }
+    }
     return { actionType: "noop", context: ctx };
+}
+// ── PR Review Comment Events (reply detection) ──
+function routeReviewComment(ctx, policies) {
+    const comment = github.context.payload.comment;
+    const pr = github.context.payload.pull_request;
+    if (!comment || !pr)
+        return { actionType: "noop", context: ctx };
+    const body = (comment.body || "").trim();
+    const botName = policies.trigger.botName;
+    const inReplyToId = comment.in_reply_to_id;
+    ctx.pullRequest = {
+        number: pr.number,
+        title: pr.title || "",
+        body: pr.body || "",
+        baseRef: pr.base?.ref || "main",
+        headRef: pr.head?.ref || "",
+        labels: (pr.labels || []).map((l) => l.name),
+        changedFiles: [],
+    };
+    if (isMentioned(body, botName)) {
+        core.info(`@${botName} mentioned in review comment on PR #${pr.number}`);
+        return { actionType: "pr_review", context: ctx };
+    }
+    if (policies.trigger.respondToReplies && inReplyToId) {
+        const responseContext = {
+            parentCommentBody: "",
+            replyBody: body,
+            commentId: comment.id,
+            isPRReviewComment: true,
+        };
+        return { actionType: "respond", context: ctx, responseContext };
+    }
+    return { actionType: "noop", context: ctx };
+}
+// ── Helpers ──
+function hasLabel(labels, target) {
+    return labels.some((l) => l.toLowerCase() === target.toLowerCase());
+}
+function isMentioned(body, botName) {
+    return body.toLowerCase().includes(`@${botName.toLowerCase()}`);
+}
+function isBotComment(_commentBody, _body) {
+    return false;
+}
+function attachIssueOrPR(ctx, issue, isPR) {
+    if (isPR) {
+        ctx.pullRequest = {
+            number: issue.number,
+            title: issue.title || "",
+            body: issue.body || "",
+            baseRef: "",
+            headRef: "",
+            labels: (issue.labels || []).map((l) => l.name),
+            changedFiles: [],
+        };
+    }
+    else {
+        ctx.issue = {
+            number: issue.number,
+            title: issue.title || "",
+            body: issue.body || "",
+            labels: (issue.labels || []).map((l) => l.name),
+        };
+    }
 }
 function parseSlashCommand(body, actor, issueNumber, isPR) {
     const match = body.match(/^\/bot\s+(\S+)(.*)$/m);
@@ -37510,6 +38494,8 @@ function mapEventType(eventName) {
         return "issue";
     if (eventName === "issue_comment")
         return "issue_comment";
+    if (eventName === "pull_request_review_comment")
+        return "pull_request_review_comment";
     return "issue_comment";
 }
 
@@ -37551,6 +38537,14 @@ exports.SentinelConfigSchema = zod_1.z.object({
             .default({}),
     })
         .default({}),
+    trigger: zod_1.z
+        .object({
+        require_label: zod_1.z.string().default("agent"),
+        respond_to_mentions: zod_1.z.boolean().default(true),
+        respond_to_replies: zod_1.z.boolean().default(true),
+        bot_name: zod_1.z.string().default("pr-sentinel"),
+    })
+        .default({}),
     review: zod_1.z
         .object({
         max_files: zod_1.z.number().default(50),
@@ -37564,8 +38558,8 @@ exports.SentinelConfigSchema = zod_1.z.object({
         .default({}),
     fix: zod_1.z
         .object({
-        allow_auto_fix: zod_1.z.boolean().default(false),
-        allow_push_to_pr_branch: zod_1.z.boolean().default(false),
+        mode: zod_1.z.enum(["propose_only", "propose_and_pr", "yolo"]).default("propose_and_pr"),
+        confidence_threshold: zod_1.z.number().min(0).max(1).default(0.7),
         max_retry_count: zod_1.z.number().default(2),
         create_draft_pr: zod_1.z.boolean().default(true),
     })
@@ -37589,6 +38583,58 @@ exports.SentinelConfigSchema = zod_1.z.object({
     })
         .default({}),
 });
+
+
+/***/ }),
+
+/***/ 5923:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FixReviewSchema = exports.FixPlanSchema = exports.FileChangeSchema = void 0;
+exports.parseFixPlan = parseFixPlan;
+exports.parseFixReview = parseFixReview;
+const zod_1 = __nccwpck_require__(924);
+exports.FileChangeSchema = zod_1.z.object({
+    path: zod_1.z.string(),
+    action: zod_1.z.enum(["modify", "create", "delete"]),
+    changes: zod_1.z
+        .array(zod_1.z.object({ search: zod_1.z.string(), replace: zod_1.z.string() }))
+        .optional(),
+    content: zod_1.z.string().optional(),
+    explanation: zod_1.z.string(),
+});
+exports.FixPlanSchema = zod_1.z.object({
+    analysis: zod_1.z.string(),
+    fixable: zod_1.z.boolean(),
+    confidence: zod_1.z.number().min(0).max(1),
+    files: zod_1.z.array(exports.FileChangeSchema),
+    commit_message: zod_1.z.string(),
+    test_suggestions: zod_1.z.array(zod_1.z.string()),
+    risk_notes: zod_1.z.array(zod_1.z.string()),
+});
+exports.FixReviewSchema = zod_1.z.object({
+    approved: zod_1.z.boolean(),
+    confidence: zod_1.z.number().min(0).max(1),
+    concerns: zod_1.z.array(zod_1.z.string()),
+    verdict: zod_1.z.string(),
+});
+function parseFixPlan(raw) {
+    const json = extractJson(raw);
+    return exports.FixPlanSchema.parse(json);
+}
+function parseFixReview(raw) {
+    const json = extractJson(raw);
+    return exports.FixReviewSchema.parse(json);
+}
+function extractJson(text) {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match)
+        throw new Error("No JSON object found in model response");
+    return JSON.parse(match[0]);
+}
 
 
 /***/ }),

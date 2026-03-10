@@ -39,6 +39,18 @@ function makeContext(overrides?: Partial<ReviewContext>): ReviewContext {
         anthropic: { enabled: true, model: "claude-sonnet-4-20250514" },
         openai: { enabled: true, model: "gpt-4o" },
       },
+      trigger: {
+        requireLabel: "agent",
+        respondToMentions: true,
+        respondToReplies: true,
+        botName: "pr-sentinel",
+      },
+      fix: {
+        mode: "propose_and_pr" as const,
+        confidenceThreshold: 0.7,
+        createDraftPr: true,
+        maxRetryCount: 2,
+      },
     },
     ...overrides,
   }
@@ -82,6 +94,7 @@ function makeMockClient(
       },
       usage: { input: 80, output: 40 },
     }),
+    chat: vi.fn().mockResolvedValue({ text: "response", usage: { input: 50, output: 25 } }),
   }
 }
 

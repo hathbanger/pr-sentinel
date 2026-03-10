@@ -1,4 +1,4 @@
-export type EventType = "pull_request" | "issue" | "issue_comment"
+export type EventType = "pull_request" | "issue" | "issue_comment" | "pull_request_review_comment"
 
 export type ReviewMode =
   | "review"
@@ -14,7 +14,10 @@ export type ActionType =
   | "issue_triage"
   | "issue_fix"
   | "slash_command"
+  | "respond"
   | "noop"
+
+export type FixMode = "propose_only" | "propose_and_pr" | "yolo"
 
 export type FindingSeverity = "low" | "medium" | "high" | "critical"
 
@@ -92,6 +95,18 @@ export interface RepoPolicies {
     anthropic: { enabled: boolean; model: string }
     openai: { enabled: boolean; model: string }
   }
+  trigger: {
+    requireLabel: string
+    respondToMentions: boolean
+    respondToReplies: boolean
+    botName: string
+  }
+  fix: {
+    mode: FixMode
+    confidenceThreshold: number
+    createDraftPr: boolean
+    maxRetryCount: number
+  }
 }
 
 export interface ReviewFinding {
@@ -158,9 +173,50 @@ export interface RoutedEvent {
   actionType: ActionType
   context: ReviewContext
   slashCommand?: SlashCommand
+  responseContext?: ResponseContext
+}
+
+export interface ResponseContext {
+  parentCommentBody: string
+  replyBody: string
+  commentId: number
+  isPRReviewComment: boolean
 }
 
 export interface TokenUsage {
   input: number
   output: number
+}
+
+export interface FileChange {
+  path: string
+  action: "modify" | "create" | "delete"
+  changes?: Array<{ search: string; replace: string }>
+  content?: string
+  explanation: string
+}
+
+export interface FixPlan {
+  analysis: string
+  fixable: boolean
+  confidence: number
+  files: FileChange[]
+  commitMessage: string
+  testSuggestions: string[]
+  riskNotes: string[]
+}
+
+export interface FixResult {
+  success: boolean
+  fixPlan?: FixPlan
+  branch?: string
+  prNumber?: number
+  prUrl?: string
+  error?: string
+}
+
+export interface CodeContext {
+  files: Array<{ path: string; content: string; relevance: string }>
+  structure: string
+  dependencies: string
 }

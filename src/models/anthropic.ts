@@ -146,6 +146,10 @@ export class AnthropicClient implements ModelClient {
     }
   }
 
+  async chat(system: string, user: string): Promise<{ text: string; usage: TokenUsage }> {
+    return this.call(system, user)
+  }
+
   private async call(
     system: string,
     user: string,

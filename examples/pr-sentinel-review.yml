@@ -4,41 +4,59 @@
 #   ANTHROPIC_API_KEY — Anthropic API key for Claude
 #   OPENAI_API_KEY   — OpenAI API key for GPT
 #
+# Required setup:
+#   Create a label called "agent" in your repo (Settings → Labels → New label)
+#
+# Trigger behavior:
+#   - PR labeled "agent" → dual-model review on every push
+#   - Issue labeled "agent" → analyze code, propose fix
+#   - @pr-sentinel in any comment → run appropriate action
+#   - Reply to bot comment → conversational response
+#
 # Optional: create .github/pr-sentinel.yml for per-repo configuration.
 
 name: PR Sentinel
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled]
   issues:
-    types: [opened]
+    types: [opened, labeled]
   issue_comment:
+    types: [created]
+  pull_request_review_comment:
     types: [created]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   issues: write
 
 concurrency:
-  group: pr-sentinel-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: pr-sentinel-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  review:
-    name: AI Review
+  sentinel:
+    name: PR Sentinel
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     if: |
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'issues' && github.event.action == 'opened') ||
-      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/bot'))
+      (github.event_name == 'pull_request') ||
+      (github.event_name == 'issues') ||
+      (github.event_name == 'issue_comment' && (
+        contains(github.event.comment.body, '@pr-sentinel') ||
+        contains(github.event.comment.body, '/bot')
+      )) ||
+      (github.event_name == 'pull_request_review_comment')
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: 402goose/pr-sentinel@v1
+      - uses: hathbanger/pr-sentinel@main
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}

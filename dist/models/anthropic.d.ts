@@ -17,6 +17,10 @@ export declare class AnthropicClient implements ModelClient {
         response: CritiqueResponse;
         usage: TokenUsage;
     }>;
+    chat(system: string, user: string): Promise<{
+        text: string;
+        usage: TokenUsage;
+    }>;
     private call;
 }
 //# sourceMappingURL=anthropic.d.ts.map
