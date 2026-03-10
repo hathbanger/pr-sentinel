@@ -102,16 +102,6 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         inline_comments: boolean;
         severity_threshold: "low" | "medium" | "high" | "critical";
     };
-    fix: {
-        allow_auto_fix: boolean;
-        allow_push_to_pr_branch: boolean;
-        max_retry_count: number;
-        create_draft_pr: boolean;
-    };
-    security: {
-        restricted_paths: string[];
-        block_fork_mutation: boolean;
-    };
     validation: {
         commands: string[];
     };
@@ -125,6 +115,16 @@ export declare const SentinelConfigSchema: z.ZodObject<{
             model: string;
         };
     };
+    fix: {
+        allow_auto_fix: boolean;
+        allow_push_to_pr_branch: boolean;
+        max_retry_count: number;
+        create_draft_pr: boolean;
+    };
+    security: {
+        restricted_paths: string[];
+        block_fork_mutation: boolean;
+    };
 }, {
     mode?: "issue_triage" | "issue_fix" | "review" | "review_and_suggest" | "review_and_patch" | "manual_only" | undefined;
     review?: {
@@ -133,16 +133,6 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         comment_style?: "concise" | "comprehensive" | undefined;
         inline_comments?: boolean | undefined;
         severity_threshold?: "low" | "medium" | "high" | "critical" | undefined;
-    } | undefined;
-    fix?: {
-        allow_auto_fix?: boolean | undefined;
-        allow_push_to_pr_branch?: boolean | undefined;
-        max_retry_count?: number | undefined;
-        create_draft_pr?: boolean | undefined;
-    } | undefined;
-    security?: {
-        restricted_paths?: string[] | undefined;
-        block_fork_mutation?: boolean | undefined;
     } | undefined;
     validation?: {
         commands?: string[] | undefined;
@@ -156,6 +146,16 @@ export declare const SentinelConfigSchema: z.ZodObject<{
             enabled?: boolean | undefined;
             model?: string | undefined;
         } | undefined;
+    } | undefined;
+    fix?: {
+        allow_auto_fix?: boolean | undefined;
+        allow_push_to_pr_branch?: boolean | undefined;
+        max_retry_count?: number | undefined;
+        create_draft_pr?: boolean | undefined;
+    } | undefined;
+    security?: {
+        restricted_paths?: string[] | undefined;
+        block_fork_mutation?: boolean | undefined;
     } | undefined;
 }>;
 export type SentinelConfig = z.infer<typeof SentinelConfigSchema>;
