@@ -583,17 +583,74 @@ async function postStepSummary(decision: FinalDecision): Promise<void> {
 }
 
 function setOutputs(decision: FinalDecision): void {
+  const quality = computeQualitySignal(decision)
+
   const artifact = {
-    version: 1,
+    version: 2,
     timestamp: new Date().toISOString(),
     action: decision.action,
     rationale: decision.rationale,
     findings: decision.findings,
     token_usage: decision.tokenUsage,
     duration_ms: decision.durationMs,
+    quality_score: quality.quality_score,
+    model_agreement: quality.model_agreement,
+    dimensions: quality.dimensions,
+    severity_counts: quality.severity_counts,
   }
 
   core.setOutput("review_json", JSON.stringify(artifact))
   core.setOutput("findings_count", decision.findings.length.toString())
   core.setOutput("action", decision.action)
+  core.setOutput("quality_score", quality.quality_score.toFixed(4))
+  core.setOutput("model_agreement", quality.model_agreement.toFixed(4))
+  core.setOutput("findings_critical", quality.severity_counts.critical.toString())
+  core.setOutput("findings_high", quality.severity_counts.high.toString())
+  core.setOutput("findings_medium", quality.severity_counts.medium.toString())
+  core.setOutput("findings_low", quality.severity_counts.low.toString())
+  core.setOutput("dim_correctness", quality.dimensions.correctness.toFixed(4))
+  core.setOutput("dim_coverage", quality.dimensions.coverage.toFixed(4))
+  core.setOutput("dim_architecture", quality.dimensions.architecture.toFixed(4))
+  core.setOutput("dim_value", quality.dimensions.value.toFixed(4))
+}
+
+interface QualitySignal {
+  quality_score: number
+  model_agreement: number
+  dimensions: { correctness: number; coverage: number; architecture: number; value: number }
+  severity_counts: Record<FindingSeverity, number>
+}
+
+function computeQualitySignal(decision: FinalDecision): QualitySignal {
+  const counts = countBySeverity(decision.findings)
+
+  const penalties = counts.critical * 0.25 + counts.high * 0.15 + counts.medium * 0.05 + counts.low * 0.01
+  const quality_score = Math.max(0, Math.min(1, 1.0 - penalties))
+
+  let model_agreement = 1.0
+  if (decision.anthropicReview && decision.openaiReview) {
+    const agreedCount = decision.critique?.agreedFindings?.length ?? 0
+    const disputedCount = decision.critique?.disputedFindings?.length ?? 0
+    const totalDebated = agreedCount + disputedCount
+    model_agreement = totalDebated > 0 ? agreedCount / totalDebated : 1.0
+  }
+
+  const dimPenalties: Record<FindingType, keyof QualitySignal["dimensions"]> = {
+    bug: "correctness",
+    security: "correctness",
+    performance: "value",
+    maintainability: "value",
+    test_gap: "coverage",
+    architecture: "architecture",
+  }
+
+  const dims = { correctness: 1.0, coverage: 1.0, architecture: 1.0, value: 1.0 }
+  for (const f of decision.findings) {
+    const dim = dimPenalties[f.type]
+    if (!dim) continue
+    const penalty = f.severity === "critical" ? 0.3 : f.severity === "high" ? 0.2 : f.severity === "medium" ? 0.1 : 0.03
+    dims[dim] = Math.max(0, dims[dim] - penalty)
+  }
+
+  return { quality_score, model_agreement, dimensions: dims, severity_counts: counts }
 }

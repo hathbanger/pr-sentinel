@@ -51,11 +51,31 @@ inputs:
 
 outputs:
   review_json:
-    description: "Full review result as JSON"
+    description: "Full review result as JSON (v2: includes quality_score, model_agreement, dimensions)"
   findings_count:
     description: "Number of findings"
   action:
     description: "Decision taken (comment_only, request_changes, etc.)"
+  quality_score:
+    description: "Overall code quality score 0.0-1.0 (1.0 = no findings)"
+  model_agreement:
+    description: "Cross-model agreement ratio 0.0-1.0 (1.0 = full agreement)"
+  findings_critical:
+    description: "Critical finding count"
+  findings_high:
+    description: "High finding count"
+  findings_medium:
+    description: "Medium finding count"
+  findings_low:
+    description: "Low finding count"
+  dim_correctness:
+    description: "Correctness dimension 0.0-1.0 (penalized by bug/security findings)"
+  dim_coverage:
+    description: "Coverage dimension 0.0-1.0 (penalized by test_gap findings)"
+  dim_architecture:
+    description: "Architecture dimension 0.0-1.0 (penalized by architecture findings)"
+  dim_value:
+    description: "Value dimension 0.0-1.0 (penalized by performance/maintainability findings)"
 
 runs:
   using: "node20"
