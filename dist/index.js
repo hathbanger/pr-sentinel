@@ -36578,7 +36578,16 @@ async function handleIssueFix(octokit, ctx, anthropic, openai, debug) {
         core.info(`Fixing issue #${ctx.issue.number}: ${ctx.issue.title}`);
     }
     const { mode, confidenceThreshold } = ctx.repoPolicies.fix;
-    const result = await (0, fixer_1.fixIssue)(ctx, anthropic, openai, octokit, mode, confidenceThreshold);
+    const trust = (0, policy_1.evaluateTrust)({
+        actor: ctx.event.actor,
+        isFork: ctx.event.isFork,
+        policies: ctx.repoPolicies,
+    });
+    const effectiveMode = trust.canMutate ? mode : "propose_only";
+    if (effectiveMode !== mode) {
+        core.info(`Mutation blocked: ${trust.reason}. Mode downgraded to propose_only.`);
+    }
+    const result = await (0, fixer_1.fixIssue)(ctx, anthropic, openai, octokit, effectiveMode, confidenceThreshold);
     await (0, reporter_1.reportFixResult)(octokit, ctx.issue.number, result, mode);
     if (result.success) {
         core.info(`Fix ${mode === "propose_only" ? "proposed" : "applied"} for issue #${ctx.issue.number}`);
@@ -38299,12 +38308,16 @@ const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
 const SLASH_COMMANDS = ["review", "fix", "triage", "plan", "explain", "retry", "ignore", "security-review", "tests"];
 const BOT_MARKER = "PR Sentinel";
+const TRUSTED_ASSOCIATIONS = ["MEMBER", "OWNER", "COLLABORATOR"];
 function routeEvent(policies) {
     const { context } = github;
     const eventName = context.eventName;
     const action = context.payload.action || "";
     const actor = context.actor;
-    core.info(`Routing event: ${eventName} / ${action} from ${actor}`);
+    const pr = context.payload.pull_request;
+    const isFork = pr ? pr.head?.repo?.full_name !== context.payload.repository?.full_name : false;
+    const authorAssociation = context.payload.comment?.author_association || undefined;
+    core.info(`Routing event: ${eventName} / ${action} from ${actor} (assoc=${authorAssociation || "N/A"}, fork=${isFork})`);
     const baseContext = {
         repository: {
             owner: context.repo.owner,
@@ -38315,7 +38328,9 @@ function routeEvent(policies) {
             type: mapEventType(eventName),
             action,
             actor,
-            trustedActor: false,
+            trustedActor: TRUSTED_ASSOCIATIONS.includes(authorAssociation || ""),
+            isFork,
+            authorAssociation,
         },
         repoPolicies: policies,
     };
@@ -38404,6 +38419,10 @@ function routeComment(ctx, policies) {
     const issue = github.context.payload.issue;
     if (!comment || !issue)
         return { actionType: "noop", context: ctx };
+    if (!ctx.event.trustedActor) {
+        core.info(`Ignoring comment from untrusted actor ${ctx.event.actor} (association: ${ctx.event.authorAssociation || "NONE"})`);
+        return { actionType: "noop", context: ctx };
+    }
     const body = (comment.body || "").trim();
     const isPR = !!issue.pull_request;
     const labels = (issue.labels || []).map((l) => l.name);
@@ -38443,6 +38462,10 @@ function routeReviewComment(ctx, policies) {
     const pr = github.context.payload.pull_request;
     if (!comment || !pr)
         return { actionType: "noop", context: ctx };
+    if (!ctx.event.trustedActor) {
+        core.info(`Ignoring review comment from untrusted actor ${ctx.event.actor} (association: ${ctx.event.authorAssociation || "NONE"})`);
+        return { actionType: "noop", context: ctx };
+    }
     const body = (comment.body || "").trim();
     const botName = policies.trigger.botName;
     const inReplyToId = comment.in_reply_to_id;

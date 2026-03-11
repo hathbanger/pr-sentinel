@@ -23,6 +23,8 @@ export interface ReviewContext {
         action: string;
         actor: string;
         trustedActor: boolean;
+        isFork: boolean;
+        authorAssociation?: string;
     };
     pullRequest?: {
         number: number;

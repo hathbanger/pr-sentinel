@@ -70,6 +70,7 @@ export declare const ModelReviewSchema: z.ZodObject<{
     merge_blocking: z.ZodBoolean;
     needs_human_attention: z.ZodBoolean;
 }, "strip", z.ZodTypeAny, {
+    confidence: number;
     findings: {
         title: string;
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
@@ -81,12 +82,12 @@ export declare const ModelReviewSchema: z.ZodObject<{
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
     }[];
-    confidence: number;
     summary: string;
     severity: "low" | "medium" | "high" | "critical";
     merge_blocking: boolean;
     needs_human_attention: boolean;
 }, {
+    confidence: number;
     findings: {
         title: string;
         type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
@@ -98,7 +99,6 @@ export declare const ModelReviewSchema: z.ZodObject<{
         line_end?: number | undefined;
         suggested_fix?: string | undefined;
     }[];
-    confidence: number;
     summary: string;
     severity: "low" | "medium" | "high" | "critical";
     merge_blocking: boolean;

@@ -36,7 +36,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: pr-sentinel-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  group: pr-sentinel-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -50,8 +50,16 @@ jobs:
       (github.event_name == 'issue_comment' && (
         contains(github.event.comment.body, '@pr-sentinel') ||
         contains(github.event.comment.body, '/bot')
+      ) && (
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
       )) ||
-      (github.event_name == 'pull_request_review_comment')
+      (github.event_name == 'pull_request_review_comment' && (
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      ))
 
     steps:
       - uses: actions/checkout@v4

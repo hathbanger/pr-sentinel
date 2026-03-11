@@ -170,7 +170,7 @@ describe("routeEvent", () => {
       ;(github.context as any).payload = {
         action: "created",
         repository: { default_branch: "main" },
-        comment: { body: "Hey @pr-sentinel can you review this?", id: 1 },
+        comment: { body: "Hey @pr-sentinel can you review this?", id: 1, author_association: "MEMBER" },
         issue: {
           number: 42,
           title: "Some PR",
@@ -188,7 +188,7 @@ describe("routeEvent", () => {
       ;(github.context as any).payload = {
         action: "created",
         repository: { default_branch: "main" },
-        comment: { body: "@pr-sentinel fix this please", id: 1 },
+        comment: { body: "@pr-sentinel fix this please", id: 1, author_association: "MEMBER" },
         issue: {
           number: 10,
           title: "Bug",
@@ -211,6 +211,7 @@ describe("routeEvent", () => {
           body: "What about edge cases?",
           id: 100,
           in_reply_to_id: 99,
+          author_association: "COLLABORATOR",
         },
         pull_request: {
           number: 42,
@@ -235,6 +236,7 @@ describe("routeEvent", () => {
         comment: {
           body: "@pr-sentinel re-review this file",
           id: 100,
+          author_association: "MEMBER",
         },
         pull_request: {
           number: 42,
@@ -256,7 +258,7 @@ describe("routeEvent", () => {
       ;(github.context as any).payload = {
         action: "created",
         repository: { default_branch: "main" },
-        comment: { body: "/bot review", id: 1 },
+        comment: { body: "/bot review", id: 1, author_association: "OWNER" },
         issue: {
           number: 42,
           title: "PR",
@@ -275,7 +277,7 @@ describe("routeEvent", () => {
       ;(github.context as any).payload = {
         action: "created",
         repository: { default_branch: "main" },
-        comment: { body: "/bot fix", id: 1 },
+        comment: { body: "/bot fix", id: 1, author_association: "MEMBER" },
         issue: {
           number: 10,
           title: "Bug",
@@ -286,6 +288,24 @@ describe("routeEvent", () => {
       const result = routeEvent(defaultPolicies)
       expect(result.actionType).toBe("issue_fix")
       expect(result.slashCommand?.command).toBe("fix")
+    })
+
+    it("rejects slash commands from untrusted actors", () => {
+      ;(github.context as any).eventName = "issue_comment"
+      ;(github.context as any).payload = {
+        action: "created",
+        repository: { default_branch: "main" },
+        comment: { body: "/bot review", id: 1, author_association: "NONE" },
+        issue: {
+          number: 42,
+          title: "PR",
+          body: "",
+          labels: [],
+          pull_request: { url: "..." },
+        },
+      }
+      const result = routeEvent(defaultPolicies)
+      expect(result.actionType).toBe("noop")
     })
 
     it("ignores non-slash non-mention comments", () => {

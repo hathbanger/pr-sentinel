@@ -4,6 +4,7 @@ import type { ActionType, EventType, SlashCommand, RoutedEvent, ReviewContext, R
 
 const SLASH_COMMANDS = ["review", "fix", "triage", "plan", "explain", "retry", "ignore", "security-review", "tests"]
 const BOT_MARKER = "PR Sentinel"
+const TRUSTED_ASSOCIATIONS = ["MEMBER", "OWNER", "COLLABORATOR"]
 
 export function routeEvent(policies: RepoPolicies): RoutedEvent {
   const { context } = github
@@ -11,7 +12,11 @@ export function routeEvent(policies: RepoPolicies): RoutedEvent {
   const action = context.payload.action || ""
   const actor = context.actor
 
-  core.info(`Routing event: ${eventName} / ${action} from ${actor}`)
+  const pr = context.payload.pull_request
+  const isFork = pr ? pr.head?.repo?.full_name !== context.payload.repository?.full_name : false
+  const authorAssociation = (context.payload.comment?.author_association as string) || undefined
+
+  core.info(`Routing event: ${eventName} / ${action} from ${actor} (assoc=${authorAssociation || "N/A"}, fork=${isFork})`)
 
   const baseContext: ReviewContext = {
     repository: {
@@ -23,7 +28,9 @@ export function routeEvent(policies: RepoPolicies): RoutedEvent {
       type: mapEventType(eventName),
       action,
       actor,
-      trustedActor: false,
+      trustedActor: TRUSTED_ASSOCIATIONS.includes(authorAssociation || ""),
+      isFork,
+      authorAssociation,
     },
     repoPolicies: policies,
   }
@@ -126,6 +133,11 @@ function routeComment(ctx: ReviewContext, policies: RepoPolicies): RoutedEvent {
   const issue = github.context.payload.issue
   if (!comment || !issue) return { actionType: "noop", context: ctx }
 
+  if (!ctx.event.trustedActor) {
+    core.info(`Ignoring comment from untrusted actor ${ctx.event.actor} (association: ${ctx.event.authorAssociation || "NONE"})`)
+    return { actionType: "noop", context: ctx }
+  }
+
   const body = (comment.body || "").trim()
   const isPR = !!issue.pull_request
   const labels: string[] = (issue.labels || []).map((l: { name: string }) => l.name)
@@ -170,6 +182,11 @@ function routeReviewComment(ctx: ReviewContext, policies: RepoPolicies): RoutedE
   const comment = github.context.payload.comment
   const pr = github.context.payload.pull_request
   if (!comment || !pr) return { actionType: "noop", context: ctx }
+
+  if (!ctx.event.trustedActor) {
+    core.info(`Ignoring review comment from untrusted actor ${ctx.event.actor} (association: ${ctx.event.authorAssociation || "NONE"})`)
+    return { actionType: "noop", context: ctx }
+  }
 
   const body = (comment.body || "").trim()
   const botName = policies.trigger.botName

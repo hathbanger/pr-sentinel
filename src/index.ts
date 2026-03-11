@@ -2,7 +2,7 @@ import * as core from "@actions/core"
 import * as github from "@actions/github"
 import { routeEvent } from "./router"
 import { buildPRContext, buildIssueContext } from "./context"
-import { loadPolicies } from "./policy"
+import { loadPolicies, evaluateTrust } from "./policy"
 import { orchestrateReview } from "./orchestrator"
 import { reportReview, reportIssueTriage, reportFailure, reportFixResult } from "./reporter"
 import { fixIssue } from "./fixer"
@@ -173,7 +173,18 @@ async function handleIssueFix(
 
   const { mode, confidenceThreshold } = ctx.repoPolicies.fix
 
-  const result = await fixIssue(ctx, anthropic, openai, octokit, mode, confidenceThreshold)
+  const trust = evaluateTrust({
+    actor: ctx.event.actor,
+    isFork: ctx.event.isFork,
+    policies: ctx.repoPolicies,
+  })
+
+  const effectiveMode = trust.canMutate ? mode : "propose_only" as const
+  if (effectiveMode !== mode) {
+    core.info(`Mutation blocked: ${trust.reason}. Mode downgraded to propose_only.`)
+  }
+
+  const result = await fixIssue(ctx, anthropic, openai, octokit, effectiveMode, confidenceThreshold)
 
   await reportFixResult(octokit, ctx.issue!.number, result, mode)
 
