@@ -36444,12 +36444,14 @@ const fixer_1 = __nccwpck_require__(1343);
 const responder_1 = __nccwpck_require__(7873);
 const anthropic_1 = __nccwpck_require__(9654);
 const openai_1 = __nccwpck_require__(1502);
+const openrouter_1 = __nccwpck_require__(797);
 async function run() {
     const start = Date.now();
     try {
         const githubToken = core.getInput("github_token") || process.env.GITHUB_TOKEN || "";
         const anthropicKey = core.getInput("anthropic_api_key");
         const openaiKey = core.getInput("openai_api_key");
+        const openrouterKey = core.getInput("openrouter_api_key");
         const configPath = core.getInput("config_path") || ".github/pr-sentinel.yml";
         const modeOverride = core.getInput("mode") || undefined;
         const debug = core.getInput("debug") === "true";
@@ -36473,17 +36475,27 @@ async function run() {
         if (anthropicKey && policies.models.anthropic.enabled) {
             anthropic = new anthropic_1.AnthropicClient(anthropicKey, policies.models.anthropic.model);
         }
+        else if (openrouterKey && policies.models.anthropic.enabled) {
+            const model = core.getInput("openrouter_anthropic_model") || "anthropic/claude-sonnet-4-20250514";
+            anthropic = new openrouter_1.OpenRouterClient(openrouterKey, model, "anthropic");
+            core.info(`Anthropic slot: using OpenRouter fallback (${model})`);
+        }
         else {
-            core.warning("Anthropic disabled or no API key");
+            core.warning("Anthropic disabled or no API key (no OpenRouter fallback)");
         }
         if (openaiKey && policies.models.openai.enabled) {
             openai = new openai_1.OpenAIClient(openaiKey, policies.models.openai.model);
         }
+        else if (openrouterKey && policies.models.openai.enabled) {
+            const model = core.getInput("openrouter_openai_model") || "openai/gpt-4o";
+            openai = new openrouter_1.OpenRouterClient(openrouterKey, model, "openai");
+            core.info(`OpenAI slot: using OpenRouter fallback (${model})`);
+        }
         else {
-            core.warning("OpenAI disabled or no API key");
+            core.warning("OpenAI disabled or no API key (no OpenRouter fallback)");
         }
         if (!anthropic && !openai) {
-            core.setFailed("At least one model must be configured (anthropic_api_key or openai_api_key)");
+            core.setFailed("At least one model must be configured (anthropic_api_key, openai_api_key, or openrouter_api_key)");
             return;
         }
         switch (routed.actionType) {
@@ -37054,6 +37066,320 @@ class OpenAIClient {
     }
 }
 exports.OpenAIClient = OpenAIClient;
+function buildContextBlock(req) {
+    const parts = [];
+    const ctx = req.context;
+    if (ctx.repoPolicies.reviewRulesMarkdown) {
+        parts.push(`## Repository Review Rules\n${ctx.repoPolicies.reviewRulesMarkdown}`);
+    }
+    if (ctx.repoPolicies.architectureNotes) {
+        parts.push(`## Architecture Notes\n${ctx.repoPolicies.architectureNotes}`);
+    }
+    return parts.join("\n\n");
+}
+function normalizeReview(parsed, source) {
+    return {
+        summary: parsed.summary,
+        severity: parsed.severity,
+        confidence: parsed.confidence,
+        findings: parsed.findings.map((f) => normalizeFinding(f, source)),
+        mergeBlocking: parsed.merge_blocking,
+        needsHumanAttention: parsed.needs_human_attention,
+    };
+}
+function normalizeFinding(f, source) {
+    return {
+        type: f.type,
+        severity: f.severity,
+        title: f.title,
+        file: f.file,
+        lineStart: f.line_start,
+        lineEnd: f.line_end,
+        explanation: f.explanation,
+        suggestedFix: f.suggested_fix,
+        confidence: f.confidence,
+        source,
+    };
+}
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+
+/***/ }),
+
+/***/ 797:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.OpenRouterClient = void 0;
+const openai_1 = __importDefault(__nccwpck_require__(2583));
+const core = __importStar(__nccwpck_require__(7484));
+const review_1 = __nccwpck_require__(4430);
+const ARCHITECT_REVIEW_SYSTEM = `You are a principal engineer conducting a code review. You are thorough, skeptical, and focused on long-term code health.
+
+Your priorities:
+1. Intent mismatch — does the code do what the PR says it does?
+2. Hidden edge cases — what breaks under unusual input or concurrency?
+3. Correctness risks — logic errors, off-by-one, race conditions, null derefs
+4. Security — injection, XSS, credential exposure, unsafe deserialization
+5. Test gaps — what should be tested that isn't?
+6. Maintainability — will this be clear in 6 months?
+
+You are NOT a style checker. Only flag real problems that affect correctness, security, or maintainability.
+
+Respond with a JSON object matching this exact schema:
+{
+  "summary": "2-3 sentence overall assessment",
+  "severity": "low | medium | high | critical",
+  "confidence": 0.0-1.0,
+  "findings": [
+    {
+      "type": "bug | security | performance | maintainability | test_gap | architecture",
+      "severity": "low | medium | high | critical",
+      "title": "short title",
+      "file": "path/to/file",
+      "line_start": 1,
+      "line_end": 1,
+      "explanation": "detailed explanation of the issue",
+      "suggested_fix": "optional concrete fix",
+      "confidence": 0.0-1.0
+    }
+  ],
+  "merge_blocking": true/false,
+  "needs_human_attention": true/false
+}
+
+If the code is clean, return an empty findings array with a positive summary.
+Output ONLY the JSON object, no markdown fences.`;
+const ENGINEER_REVIEW_SYSTEM = `You are a repo-aware implementation engineer reviewing code changes. You are precise, concrete, and focused on correctness at the code level.
+
+Your priorities:
+1. Concrete bugs — specific lines with specific problems
+2. Input validation — missing checks, unhandled errors, boundary conditions
+3. Type safety — incorrect types, unsafe casts, missing null checks
+4. Resource handling — unclosed connections, memory leaks, missing cleanup
+5. Test coverage — specific test cases that should exist for this change
+6. Convention violations — does this match the rest of the codebase?
+
+Focus on code-level specifics, not high-level architecture. Be precise about file paths and line numbers.
+
+Respond with a JSON object matching this exact schema:
+{
+  "summary": "2-3 sentence code-level assessment",
+  "severity": "low | medium | high | critical",
+  "confidence": 0.0-1.0,
+  "findings": [
+    {
+      "type": "bug | security | performance | maintainability | test_gap | architecture",
+      "severity": "low | medium | high | critical",
+      "title": "short title",
+      "file": "path/to/file",
+      "line_start": 1,
+      "line_end": 1,
+      "explanation": "detailed explanation with code reference",
+      "suggested_fix": "concrete code fix",
+      "confidence": 0.0-1.0
+    }
+  ],
+  "merge_blocking": true/false,
+  "needs_human_attention": true/false
+}
+
+If the code is clean, return an empty findings array with a positive summary.
+Output ONLY the JSON object, no markdown fences.`;
+const CRITIQUE_SYSTEM = `You are a principal engineer reviewing another engineer's code review findings.
+
+For each finding from the other reviewer:
+1. If you agree, acknowledge it and explain why it matters
+2. If you disagree, explain specifically why with code references
+3. Identify any issues they missed entirely
+
+You MUST acknowledge the strongest points from the other review, even if you disagree with others.
+
+Respond with a JSON object:
+{
+  "agreed_findings": ["description of each finding you agree with"],
+  "disputed_findings": [{"finding": "what they said", "reason": "why you disagree"}],
+  "missed_issues": [same schema as review findings above],
+  "overall_assessment": "your synthesis",
+  "revised_severity": "low | medium | high | critical"
+}
+
+Output ONLY the JSON object, no markdown fences.`;
+const CRITIQUE_RESPONSE_SYSTEM = `You are an implementation engineer responding to a senior reviewer's critique of your code review.
+
+For each critique:
+1. If they're right, accept it explicitly
+2. If you disagree, provide a specific rebuttal with code references
+3. Update your findings list based on valid critiques
+
+You MUST accept valid critiques. Do not be defensive.
+
+Respond with a JSON object:
+{
+  "accepted": ["description of each accepted critique"],
+  "disputed": [{"critique": "what they said", "rebuttal": "your specific rebuttal"}],
+  "revised_findings": [same schema as review findings — your FINAL revised list],
+  "final_summary": "updated assessment incorporating valid critiques"
+}
+
+Output ONLY the JSON object, no markdown fences.`;
+class OpenRouterClient {
+    name;
+    client;
+    model;
+    role;
+    constructor(apiKey, model, role) {
+        this.client = new openai_1.default({
+            apiKey,
+            baseURL: "https://openrouter.ai/api/v1",
+            defaultHeaders: {
+                "HTTP-Referer": "https://github.com/hathbanger/pr-sentinel",
+                "X-Title": "PR Sentinel",
+            },
+        });
+        this.model = model;
+        this.role = role;
+        this.name = role;
+    }
+    get reviewSystem() {
+        return this.role === "anthropic" ? ARCHITECT_REVIEW_SYSTEM : ENGINEER_REVIEW_SYSTEM;
+    }
+    get critiqueSystem() {
+        return this.role === "anthropic" ? CRITIQUE_SYSTEM : CRITIQUE_RESPONSE_SYSTEM;
+    }
+    async review(req) {
+        const contextBlock = buildContextBlock(req);
+        const response = await this.call(this.reviewSystem, `Review this pull request:\n\n${contextBlock}\n\n${req.userPrompt}`);
+        const parsed = (0, review_1.parseModelReview)(response.text);
+        return {
+            review: normalizeReview(parsed, this.role),
+            usage: response.usage,
+        };
+    }
+    async critique(req) {
+        const findingsJson = JSON.stringify(req.otherModelReview, null, 2);
+        const response = await this.call(CRITIQUE_SYSTEM, `Here are the findings from another code reviewer:\n\n${findingsJson}\n\nCritique these findings. What did they get right? What did they get wrong? What did they miss?`);
+        const parsed = (0, review_1.parseCritiqueOutput)(response.text);
+        return {
+            critique: {
+                agreedFindings: parsed.agreed_findings,
+                disputedFindings: parsed.disputed_findings,
+                missedIssues: parsed.missed_issues.map((f) => normalizeFinding(f, this.role)),
+                overallAssessment: parsed.overall_assessment,
+                revisedSeverity: parsed.revised_severity,
+            },
+            usage: response.usage,
+        };
+    }
+    async respondToCritique(req) {
+        const critiqueJson = JSON.stringify(req.critique, null, 2);
+        const originalJson = JSON.stringify(req.originalReview, null, 2);
+        const response = await this.call(CRITIQUE_RESPONSE_SYSTEM, `Your original review:\n${originalJson}\n\nA senior reviewer critiqued your findings:\n${critiqueJson}\n\nRespond to the critique. Accept valid points. Defend findings you believe are correct. Output revised findings.`);
+        let parsed;
+        try {
+            parsed = (0, review_1.parseCritiqueResponse)(response.text);
+        }
+        catch {
+            return {
+                response: {
+                    accepted: [],
+                    disputed: [],
+                    revisedFindings: req.originalReview.findings,
+                    finalSummary: response.text.substring(0, 500),
+                },
+                usage: response.usage,
+            };
+        }
+        return {
+            response: {
+                accepted: parsed.accepted,
+                disputed: parsed.disputed,
+                revisedFindings: parsed.revised_findings.map((f) => normalizeFinding(f, this.role)),
+                finalSummary: parsed.final_summary,
+            },
+            usage: response.usage,
+        };
+    }
+    async chat(system, user) {
+        return this.call(system, user);
+    }
+    async call(system, user, retries = 1) {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                const response = await this.client.chat.completions.create({
+                    model: this.model,
+                    messages: [
+                        { role: "system", content: system },
+                        { role: "user", content: user },
+                    ],
+                    max_tokens: 4096,
+                    temperature: 0.1,
+                    response_format: { type: "json_object" },
+                });
+                const text = response.choices[0]?.message?.content || "";
+                return {
+                    text,
+                    usage: {
+                        input: response.usage?.prompt_tokens || 0,
+                        output: response.usage?.completion_tokens || 0,
+                    },
+                };
+            }
+            catch (err) {
+                const status = err.status;
+                const isRetryable = status === 429 || status === 500 || status === 502 || status === 503;
+                if (attempt < retries && isRetryable) {
+                    core.warning(`OpenRouter call failed (attempt ${attempt + 1}, model=${this.model}), retrying...`);
+                    await sleep(2000 * (attempt + 1));
+                    continue;
+                }
+                throw err;
+            }
+        }
+        throw new Error(`OpenRouter call exhausted retries (model=${this.model})`);
+    }
+}
+exports.OpenRouterClient = OpenRouterClient;
 function buildContextBlock(req) {
     const parts = [];
     const ctx = req.context;

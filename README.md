@@ -4,6 +4,8 @@ Dual-model AI review bot for GitHub PRs and issues. Label-gated. Drop-in.
 
 Anthropic reviews architecture and risk. OpenAI reviews implementation and bugs. They critique each other. You get the merged result.
 
+**OpenRouter fallback:** If either API key is missing, PR Sentinel falls back to OpenRouter automatically. You can run the full dual-model review with just an OpenRouter key.
+
 ---
 
 ## Install (3 commands)
@@ -88,6 +90,82 @@ For agents with `gh` CLI access and repo permissions:
 ```bash
 gh secret set ANTHROPIC_API_KEY --body "$ANTHROPIC_API_KEY" && gh secret set OPENAI_API_KEY --body "$OPENAI_API_KEY" && gh label create agent --color 0E8A16 --description "PR Sentinel" 2>/dev/null; mkdir -p .github/workflows && curl -sL https://raw.githubusercontent.com/hathbanger/pr-sentinel/main/examples/pr-sentinel-review.yml -o .github/workflows/pr-sentinel.yml && git add .github/workflows/pr-sentinel.yml && git commit -m "ci: add PR Sentinel" && git push
 ```
+
+---
+
+## Install (OpenRouter only — single key)
+
+If you don't have direct Anthropic/OpenAI keys, use OpenRouter as the single provider for both model slots:
+
+```bash
+# 1. Add OpenRouter secret
+gh secret set OPENROUTER_API_KEY --body "sk-or-..."
+
+# 2. Create the trigger label
+gh label create agent --color 0E8A16 --description "PR Sentinel: AI review and fix"
+
+# 3. Add the workflow
+mkdir -p .github/workflows && cat > .github/workflows/pr-sentinel.yml << 'EOF'
+name: PR Sentinel
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-sentinel-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  sentinel:
+    name: PR Sentinel
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: |
+      (github.event_name == 'pull_request') ||
+      (github.event_name == 'issues') ||
+      (github.event_name == 'issue_comment' && (
+        contains(github.event.comment.body, '@pr-sentinel') ||
+        contains(github.event.comment.body, '/bot')
+      ) && (
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      )) ||
+      (github.event_name == 'pull_request_review_comment' && (
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      ))
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: hathbanger/pr-sentinel@main
+        with:
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+EOF
+
+git add .github/workflows/pr-sentinel.yml && git commit -m "ci: add PR Sentinel" && git push
+```
+
+OpenRouter routes to `anthropic/claude-sonnet-4-20250514` for the architect role and `openai/gpt-4o` for the engineer role by default. Override with `openrouter_anthropic_model` and `openrouter_openai_model` inputs.
+
+You can also mix: use a direct Anthropic key + OpenRouter for the OpenAI slot (or vice versa).
 
 ---
 
@@ -286,9 +364,12 @@ Use in downstream workflow steps:
 
 | Failure | Behavior |
 |---------|----------|
+| Anthropic API key missing | Falls back to OpenRouter (if key set), else OpenAI-only review |
+| OpenAI API key missing | Falls back to OpenRouter (if key set), else Anthropic-only review |
 | Anthropic API down | OpenAI-only review with warning |
 | OpenAI API down | Anthropic-only review with warning |
-| Both APIs down | Posts failure comment, exits cleanly |
+| OpenRouter API down | Falls back to whichever direct key is available |
+| All APIs down | Posts failure comment, exits cleanly |
 | Schema validation fails | Retries once, then posts raw |
 | Fix confidence too low | Posts analysis, doesn't touch code |
 | Fix apply fails | Cleans up branch, posts error |

@@ -8,11 +8,11 @@ branding:
 
 inputs:
   anthropic_api_key:
-    description: "Anthropic API key for Claude"
-    required: true
+    description: "Anthropic API key for Claude (optional if openrouter_api_key is set)"
+    required: false
   openai_api_key:
-    description: "OpenAI API key for GPT/Codex"
-    required: true
+    description: "OpenAI API key for GPT (optional if openrouter_api_key is set)"
+    required: false
   github_token:
     description: "GitHub token for API access"
     required: false
@@ -44,6 +44,17 @@ inputs:
     description: "Issue fix mode: propose_only, propose_and_pr, yolo"
     required: false
     default: "propose_and_pr"
+  openrouter_api_key:
+    description: "OpenRouter API key — used as fallback when Anthropic or OpenAI keys are missing"
+    required: false
+  openrouter_anthropic_model:
+    description: "OpenRouter model for the Anthropic (architect) role"
+    required: false
+    default: "anthropic/claude-sonnet-4-20250514"
+  openrouter_openai_model:
+    description: "OpenRouter model for the OpenAI (engineer) role"
+    required: false
+    default: "openai/gpt-4o"
   debug:
     description: "Enable debug logging"
     required: false

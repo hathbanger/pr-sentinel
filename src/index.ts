@@ -9,6 +9,7 @@ import { fixIssue } from "./fixer"
 import { handleResponse } from "./responder"
 import { AnthropicClient } from "./models/anthropic"
 import { OpenAIClient } from "./models/openai"
+import { OpenRouterClient } from "./models/openrouter"
 import type { ModelClient } from "./models/types"
 
 async function run(): Promise<void> {
@@ -18,6 +19,7 @@ async function run(): Promise<void> {
     const githubToken = core.getInput("github_token") || process.env.GITHUB_TOKEN || ""
     const anthropicKey = core.getInput("anthropic_api_key")
     const openaiKey = core.getInput("openai_api_key")
+    const openrouterKey = core.getInput("openrouter_api_key")
     const configPath = core.getInput("config_path") || ".github/pr-sentinel.yml"
     const modeOverride = core.getInput("mode") || undefined
     const debug = core.getInput("debug") === "true"
@@ -45,18 +47,26 @@ async function run(): Promise<void> {
 
     if (anthropicKey && policies.models.anthropic.enabled) {
       anthropic = new AnthropicClient(anthropicKey, policies.models.anthropic.model)
+    } else if (openrouterKey && policies.models.anthropic.enabled) {
+      const model = core.getInput("openrouter_anthropic_model") || "anthropic/claude-sonnet-4-20250514"
+      anthropic = new OpenRouterClient(openrouterKey, model, "anthropic")
+      core.info(`Anthropic slot: using OpenRouter fallback (${model})`)
     } else {
-      core.warning("Anthropic disabled or no API key")
+      core.warning("Anthropic disabled or no API key (no OpenRouter fallback)")
     }
 
     if (openaiKey && policies.models.openai.enabled) {
       openai = new OpenAIClient(openaiKey, policies.models.openai.model)
+    } else if (openrouterKey && policies.models.openai.enabled) {
+      const model = core.getInput("openrouter_openai_model") || "openai/gpt-4o"
+      openai = new OpenRouterClient(openrouterKey, model, "openai")
+      core.info(`OpenAI slot: using OpenRouter fallback (${model})`)
     } else {
-      core.warning("OpenAI disabled or no API key")
+      core.warning("OpenAI disabled or no API key (no OpenRouter fallback)")
     }
 
     if (!anthropic && !openai) {
-      core.setFailed("At least one model must be configured (anthropic_api_key or openai_api_key)")
+      core.setFailed("At least one model must be configured (anthropic_api_key, openai_api_key, or openrouter_api_key)")
       return
     }
 
