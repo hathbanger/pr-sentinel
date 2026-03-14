@@ -223,7 +223,38 @@ function getDependencies(): string {
   }
 
   if (fs.existsSync("Cargo.toml")) {
-    parts.push("Rust/Cargo project")
+    try {
+      const cargoContent = fs.readFileSync("Cargo.toml", "utf-8")
+      const nameMatch = cargoContent.match(/^name\s*=\s*"([^"]+)"/m)
+      const membersMatch = cargoContent.match(/members\s*=\s*\[([^\]]+)\]/s)
+      const cargoName = nameMatch ? nameMatch[1] : "unnamed"
+
+      if (membersMatch) {
+        const members = membersMatch[1].match(/"([^"]+)"/g)?.map((m) => m.replace(/"/g, "")) || []
+        parts.push(`Rust workspace: ${cargoName} (members: ${members.join(", ")})`)
+
+        for (const member of members.slice(0, 8)) {
+          const memberToml = `${member}/Cargo.toml`
+          if (fs.existsSync(memberToml)) {
+            try {
+              const memberContent = fs.readFileSync(memberToml, "utf-8")
+              const depsSection = memberContent.match(/\[dependencies\]([\s\S]*?)(?=\n\[|$)/)?.[1] || ""
+              const depNames = depsSection.match(/^(\w[\w-]*)\s*=/gm)?.map((d) => d.replace(/\s*=.*/, "")) || []
+              if (depNames.length) {
+                parts.push(`  ${member}: ${depNames.join(", ")}`)
+              }
+            } catch { /* skip unreadable member */ }
+          }
+        }
+      } else {
+        const depsSection = cargoContent.match(/\[dependencies\]([\s\S]*?)(?=\n\[|$)/)?.[1] || ""
+        const depNames = depsSection.match(/^(\w[\w-]*)\s*=/gm)?.map((d) => d.replace(/\s*=.*/, "")) || []
+        parts.push(`Rust project: ${cargoName}`)
+        if (depNames.length) parts.push(`Dependencies: ${depNames.join(", ")}`)
+      }
+    } catch {
+      parts.push("Rust/Cargo project")
+    }
   }
 
   if (fs.existsSync("tsconfig.json")) {
