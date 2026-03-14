@@ -38717,14 +38717,17 @@ function routePullRequest(ctx, action, policies) {
     if (!pr)
         return { actionType: "noop", context: ctx };
     const labels = (pr.labels || []).map((l) => l.name);
+    const labelGateEnabled = policies.trigger.requireLabel !== "";
     if (action === "labeled") {
-        const addedLabel = github.context.payload.label?.name || "";
-        if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
-            return { actionType: "noop", context: ctx };
+        if (labelGateEnabled) {
+            const addedLabel = github.context.payload.label?.name || "";
+            if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
+                return { actionType: "noop", context: ctx };
+            }
         }
     }
     else if (["opened", "synchronize", "reopened"].includes(action)) {
-        if (!hasLabel(labels, policies.trigger.requireLabel)) {
+        if (labelGateEnabled && !hasLabel(labels, policies.trigger.requireLabel)) {
             core.info(`PR #${pr.number} missing "${policies.trigger.requireLabel}" label — skipping`);
             return { actionType: "noop", context: ctx };
         }
@@ -38749,14 +38752,17 @@ function routeIssue(ctx, action, policies) {
     if (!issue)
         return { actionType: "noop", context: ctx };
     const labels = (issue.labels || []).map((l) => l.name);
+    const labelGateEnabled = policies.trigger.requireLabel !== "";
     if (action === "labeled") {
-        const addedLabel = github.context.payload.label?.name || "";
-        if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
-            return { actionType: "noop", context: ctx };
+        if (labelGateEnabled) {
+            const addedLabel = github.context.payload.label?.name || "";
+            if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
+                return { actionType: "noop", context: ctx };
+            }
         }
     }
     else if (action === "opened") {
-        if (!hasLabel(labels, policies.trigger.requireLabel)) {
+        if (labelGateEnabled && !hasLabel(labels, policies.trigger.requireLabel)) {
             core.info(`Issue #${issue.number} missing "${policies.trigger.requireLabel}" label — skipping`);
             return { actionType: "noop", context: ctx };
         }
@@ -38965,7 +38971,7 @@ exports.SentinelConfigSchema = zod_1.z.object({
         .default({}),
     trigger: zod_1.z
         .object({
-        require_label: zod_1.z.string().default("agent"),
+        require_label: zod_1.z.string().default("agent"), // set to "" to run on every PR/issue
         respond_to_mentions: zod_1.z.boolean().default(true),
         respond_to_replies: zod_1.z.boolean().default(true),
         bot_name: zod_1.z.string().default("pr-sentinel"),

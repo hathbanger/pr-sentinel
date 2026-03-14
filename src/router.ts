@@ -67,13 +67,17 @@ function routePullRequest(ctx: ReviewContext, action: string, policies: RepoPoli
 
   const labels: string[] = (pr.labels || []).map((l: { name: string }) => l.name)
 
+  const labelGateEnabled = policies.trigger.requireLabel !== ""
+
   if (action === "labeled") {
-    const addedLabel = github.context.payload.label?.name || ""
-    if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
-      return { actionType: "noop", context: ctx }
+    if (labelGateEnabled) {
+      const addedLabel = github.context.payload.label?.name || ""
+      if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
+        return { actionType: "noop", context: ctx }
+      }
     }
   } else if (["opened", "synchronize", "reopened"].includes(action)) {
-    if (!hasLabel(labels, policies.trigger.requireLabel)) {
+    if (labelGateEnabled && !hasLabel(labels, policies.trigger.requireLabel)) {
       core.info(`PR #${pr.number} missing "${policies.trigger.requireLabel}" label — skipping`)
       return { actionType: "noop", context: ctx }
     }
@@ -102,13 +106,17 @@ function routeIssue(ctx: ReviewContext, action: string, policies: RepoPolicies):
 
   const labels: string[] = (issue.labels || []).map((l: { name: string }) => l.name)
 
+  const labelGateEnabled = policies.trigger.requireLabel !== ""
+
   if (action === "labeled") {
-    const addedLabel = github.context.payload.label?.name || ""
-    if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
-      return { actionType: "noop", context: ctx }
+    if (labelGateEnabled) {
+      const addedLabel = github.context.payload.label?.name || ""
+      if (addedLabel.toLowerCase() !== policies.trigger.requireLabel.toLowerCase()) {
+        return { actionType: "noop", context: ctx }
+      }
     }
   } else if (action === "opened") {
-    if (!hasLabel(labels, policies.trigger.requireLabel)) {
+    if (labelGateEnabled && !hasLabel(labels, policies.trigger.requireLabel)) {
       core.info(`Issue #${issue.number} missing "${policies.trigger.requireLabel}" label — skipping`)
       return { actionType: "noop", context: ctx }
     }
