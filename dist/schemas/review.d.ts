@@ -13,8 +13,8 @@ export declare const ReviewFindingSchema: z.ZodObject<{
     confidence: z.ZodNumber;
 }, "strip", z.ZodTypeAny, {
     title: string;
-    type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
     confidence: number;
+    type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
     explanation: string;
     severity: "low" | "medium" | "high" | "critical";
     file: string;
@@ -23,8 +23,8 @@ export declare const ReviewFindingSchema: z.ZodObject<{
     suggested_fix?: string | undefined;
 }, {
     title: string;
-    type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
     confidence: number;
+    type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
     explanation: string;
     severity: "low" | "medium" | "high" | "critical";
     file: string;
@@ -48,8 +48,8 @@ export declare const ModelReviewSchema: z.ZodObject<{
         confidence: z.ZodNumber;
     }, "strip", z.ZodTypeAny, {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -58,8 +58,8 @@ export declare const ModelReviewSchema: z.ZodObject<{
         suggested_fix?: string | undefined;
     }, {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -72,8 +72,8 @@ export declare const ModelReviewSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     findings: {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -89,8 +89,8 @@ export declare const ModelReviewSchema: z.ZodObject<{
 }, {
     findings: {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -128,8 +128,8 @@ export declare const CritiqueOutputSchema: z.ZodObject<{
         confidence: z.ZodNumber;
     }, "strip", z.ZodTypeAny, {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -138,8 +138,8 @@ export declare const CritiqueOutputSchema: z.ZodObject<{
         suggested_fix?: string | undefined;
     }, {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -157,8 +157,8 @@ export declare const CritiqueOutputSchema: z.ZodObject<{
     }[];
     missed_issues: {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -176,8 +176,8 @@ export declare const CritiqueOutputSchema: z.ZodObject<{
     }[];
     missed_issues: {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -212,8 +212,8 @@ export declare const CritiqueResponseSchema: z.ZodObject<{
         confidence: z.ZodNumber;
     }, "strip", z.ZodTypeAny, {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -222,8 +222,8 @@ export declare const CritiqueResponseSchema: z.ZodObject<{
         suggested_fix?: string | undefined;
     }, {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -240,8 +240,8 @@ export declare const CritiqueResponseSchema: z.ZodObject<{
     }[];
     revised_findings: {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;
@@ -258,8 +258,8 @@ export declare const CritiqueResponseSchema: z.ZodObject<{
     }[];
     revised_findings: {
         title: string;
-        type: "security" | "bug" | "performance" | "maintainability" | "test_gap" | "architecture";
         confidence: number;
+        type: "bug" | "security" | "performance" | "maintainability" | "test_gap" | "architecture";
         explanation: string;
         severity: "low" | "medium" | "high" | "critical";
         file: string;

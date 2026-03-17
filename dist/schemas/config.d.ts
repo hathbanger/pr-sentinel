@@ -6,39 +6,39 @@ export declare const SentinelConfigSchema: z.ZodObject<{
             enabled: z.ZodDefault<z.ZodBoolean>;
             model: z.ZodDefault<z.ZodString>;
         }, "strip", z.ZodTypeAny, {
-            enabled: boolean;
             model: string;
+            enabled: boolean;
         }, {
-            enabled?: boolean | undefined;
             model?: string | undefined;
+            enabled?: boolean | undefined;
         }>>;
         openai: z.ZodDefault<z.ZodObject<{
             enabled: z.ZodDefault<z.ZodBoolean>;
             model: z.ZodDefault<z.ZodString>;
         }, "strip", z.ZodTypeAny, {
-            enabled: boolean;
             model: string;
+            enabled: boolean;
         }, {
-            enabled?: boolean | undefined;
             model?: string | undefined;
+            enabled?: boolean | undefined;
         }>>;
     }, "strip", z.ZodTypeAny, {
         anthropic: {
-            enabled: boolean;
             model: string;
+            enabled: boolean;
         };
         openai: {
-            enabled: boolean;
             model: string;
+            enabled: boolean;
         };
     }, {
         anthropic?: {
-            enabled?: boolean | undefined;
             model?: string | undefined;
+            enabled?: boolean | undefined;
         } | undefined;
         openai?: {
-            enabled?: boolean | undefined;
             model?: string | undefined;
+            enabled?: boolean | undefined;
         } | undefined;
     }>>;
     trigger: z.ZodDefault<z.ZodObject<{
@@ -63,18 +63,21 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         comment_style: z.ZodDefault<z.ZodEnum<["concise", "comprehensive"]>>;
         inline_comments: z.ZodDefault<z.ZodBoolean>;
         severity_threshold: z.ZodDefault<z.ZodEnum<["low", "medium", "high", "critical"]>>;
+        summary_on_clean: z.ZodDefault<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         max_files: number;
         max_patch_chars: number;
         comment_style: "concise" | "comprehensive";
         inline_comments: boolean;
         severity_threshold: "low" | "medium" | "high" | "critical";
+        summary_on_clean: boolean;
     }, {
         max_files?: number | undefined;
         max_patch_chars?: number | undefined;
         comment_style?: "concise" | "comprehensive" | undefined;
         inline_comments?: boolean | undefined;
         severity_threshold?: "low" | "medium" | "high" | "critical" | undefined;
+        summary_on_clean?: boolean | undefined;
     }>>;
     fix: z.ZodDefault<z.ZodObject<{
         mode: z.ZodDefault<z.ZodEnum<["propose_only", "propose_and_pr", "yolo"]>>;
@@ -123,18 +126,23 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         comment_style: "concise" | "comprehensive";
         inline_comments: boolean;
         severity_threshold: "low" | "medium" | "high" | "critical";
+        summary_on_clean: boolean;
+    };
+    security: {
+        restricted_paths: string[];
+        block_fork_mutation: boolean;
     };
     validation: {
         commands: string[];
     };
     models: {
         anthropic: {
-            enabled: boolean;
             model: string;
+            enabled: boolean;
         };
         openai: {
-            enabled: boolean;
             model: string;
+            enabled: boolean;
         };
     };
     trigger: {
@@ -142,10 +150,6 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         respond_to_mentions: boolean;
         respond_to_replies: boolean;
         bot_name: string;
-    };
-    security: {
-        restricted_paths: string[];
-        block_fork_mutation: boolean;
     };
 }, {
     mode?: "issue_triage" | "issue_fix" | "review" | "review_and_suggest" | "review_and_patch" | "manual_only" | undefined;
@@ -161,18 +165,23 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         comment_style?: "concise" | "comprehensive" | undefined;
         inline_comments?: boolean | undefined;
         severity_threshold?: "low" | "medium" | "high" | "critical" | undefined;
+        summary_on_clean?: boolean | undefined;
+    } | undefined;
+    security?: {
+        restricted_paths?: string[] | undefined;
+        block_fork_mutation?: boolean | undefined;
     } | undefined;
     validation?: {
         commands?: string[] | undefined;
     } | undefined;
     models?: {
         anthropic?: {
-            enabled?: boolean | undefined;
             model?: string | undefined;
+            enabled?: boolean | undefined;
         } | undefined;
         openai?: {
-            enabled?: boolean | undefined;
             model?: string | undefined;
+            enabled?: boolean | undefined;
         } | undefined;
     } | undefined;
     trigger?: {
@@ -180,10 +189,6 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         respond_to_mentions?: boolean | undefined;
         respond_to_replies?: boolean | undefined;
         bot_name?: string | undefined;
-    } | undefined;
-    security?: {
-        restricted_paths?: string[] | undefined;
-        block_fork_mutation?: boolean | undefined;
     } | undefined;
 }>;
 export type SentinelConfig = z.infer<typeof SentinelConfigSchema>;
