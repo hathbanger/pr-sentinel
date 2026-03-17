@@ -59,6 +59,14 @@ inputs:
     description: "Enable debug logging"
     required: false
     default: "false"
+  subway_bridge_url:
+    description: "Subway bridge base URL for agent notifications"
+    required: false
+    default: "https://relay.subway.dev"
+  subway_notify:
+    description: "Notify the agent registered in .subway/pr-contact when review completes"
+    required: false
+    default: "true"
 
 outputs:
   review_json:

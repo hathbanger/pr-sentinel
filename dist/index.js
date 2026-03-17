@@ -36478,6 +36478,7 @@ const responder_1 = __nccwpck_require__(7873);
 const anthropic_1 = __nccwpck_require__(9654);
 const openai_1 = __nccwpck_require__(1502);
 const openrouter_1 = __nccwpck_require__(797);
+const subway_1 = __nccwpck_require__(1257);
 async function run() {
     const start = Date.now();
     try {
@@ -36612,6 +36613,23 @@ async function handlePRReview(octokit, ctx, anthropic, openai, debug) {
         core.info(`Decision: ${decision.action}, ${decision.findings.length} findings, ${decision.durationMs}ms`);
     }
     await (0, reporter_1.reportReview)(octokit, decision, ctx.pullRequest.number);
+    if (core.getInput("subway_notify") !== "false") {
+        try {
+            const contact = (0, subway_1.readPrContact)();
+            const bridgeUrl = core.getInput("subway_bridge_url") || "https://relay.subway.dev";
+            const { owner, name } = ctx.repository;
+            const prNumber = ctx.pullRequest.number;
+            await (0, subway_1.notifySubwayAgent)(contact, decision, {
+                prNumber,
+                prUrl: `https://github.com/${owner}/${name}/pull/${prNumber}`,
+                repo: `${owner}/${name}`,
+                runUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY ?? `${owner}/${name}`}/actions/runs/${process.env.GITHUB_RUN_ID ?? ""}`,
+            }, bridgeUrl);
+        }
+        catch (err) {
+            core.info(`Subway notification failed non-fatally: ${err.message}`);
+        }
+    }
 }
 async function handleIssueFix(octokit, ctx, anthropic, openai, debug) {
     if (!ctx.issue) {
@@ -39140,6 +39158,214 @@ function extractJson(text) {
     if (!match)
         throw new Error("No JSON object found in model response");
     return JSON.parse(match[0]);
+}
+
+
+/***/ }),
+
+/***/ 1257:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.readPrContact = readPrContact;
+exports.isContactFresh = isContactFresh;
+exports.notifySubwayAgent = notifySubwayAgent;
+const https = __importStar(__nccwpck_require__(5692));
+const http = __importStar(__nccwpck_require__(8611));
+const fs = __importStar(__nccwpck_require__(9896));
+const path = __importStar(__nccwpck_require__(6928));
+const core = __importStar(__nccwpck_require__(7484));
+const CONTACT_FILE = ".subway/pr-contact";
+const DIRECT_CALL_MAX_AGE_MS = 60 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 10_000;
+function readPrContact(workspaceDir = process.cwd()) {
+    try {
+        const contactPath = path.join(workspaceDir, CONTACT_FILE);
+        if (!fs.existsSync(contactPath))
+            return null;
+        const raw = fs.readFileSync(contactPath, "utf-8").trim();
+        const parsed = JSON.parse(raw);
+        if (!parsed.name || typeof parsed.name !== "string") {
+            core.warning("Subway: .subway/pr-contact missing required 'name' field");
+            return null;
+        }
+        return {
+            name: parsed.name,
+            relay: parsed.relay ?? "relay.subway.dev",
+            registered_at: parsed.registered_at ?? new Date(0).toISOString(),
+            source: parsed.source ?? "cli",
+        };
+    }
+    catch (err) {
+        core.info(`Subway: could not read .subway/pr-contact — ${err.message}`);
+        return null;
+    }
+}
+function isContactFresh(contact, maxAgeMs = DIRECT_CALL_MAX_AGE_MS) {
+    try {
+        const registeredAt = new Date(contact.registered_at).getTime();
+        if (isNaN(registeredAt))
+            return false;
+        return Date.now() - registeredAt < maxAgeMs;
+    }
+    catch {
+        return false;
+    }
+}
+function buildPayload(decision, ctx) {
+    const counts = countBySeverity(decision.findings);
+    const qualityArtifact = computeQuality(decision);
+    return {
+        pr_number: ctx.prNumber,
+        pr_url: ctx.prUrl,
+        repo: ctx.repo,
+        action: decision.action,
+        has_blockers: decision.action === "request_changes" || decision.action === "needs_human_review",
+        findings_count: decision.findings.length,
+        critical: counts.critical,
+        high: counts.high,
+        medium: counts.medium,
+        low: counts.low,
+        quality_score: qualityArtifact.quality_score,
+        model_agreement: qualityArtifact.model_agreement,
+        run_url: ctx.runUrl,
+    };
+}
+function safeBroadcastTopic(repo, prNumber) {
+    const safeRepo = repo.replace(/[^a-zA-Z0-9]/g, ".");
+    return `ci.sentinel.${safeRepo}.pr${prNumber}`;
+}
+async function notifySubwayAgent(contact, decision, ctx, bridgeUrl) {
+    const payload = buildPayload(decision, ctx);
+    const payloadJson = JSON.stringify(payload);
+    const topic = safeBroadcastTopic(ctx.repo, ctx.prNumber);
+    const base = bridgeUrl.replace(/\/$/, "");
+    let directCallSucceeded = false;
+    if (contact && isContactFresh(contact)) {
+        core.info(`Subway: agent contact found — ${contact.name} (registered ${contact.registered_at})`);
+        try {
+            await post(base + "/v1/call", JSON.stringify({
+                to: contact.name,
+                method: "ci_sentinel_result",
+                payload: payloadJson,
+            }));
+            core.info(`Subway: direct call delivered to ${contact.name}`);
+            directCallSucceeded = true;
+        }
+        catch (err) {
+            core.info(`Subway: direct call to ${contact.name} failed (${err.message}) — falling back to broadcast`);
+        }
+    }
+    else if (contact) {
+        core.info(`Subway: contact ${contact.name} is stale (registered ${contact.registered_at}) — broadcast only`);
+    }
+    else {
+        core.info("Subway: no .subway/pr-contact — broadcast only");
+    }
+    try {
+        await post(base + "/v1/broadcast", JSON.stringify({
+            topic,
+            message_type: "ci_sentinel_result",
+            payload: payloadJson,
+        }));
+        core.info(`Subway: broadcast → ${topic}`);
+    }
+    catch (err) {
+        if (!directCallSucceeded) {
+            core.warning(`Subway: broadcast also failed — ${err.message}. Is the bridge reachable at ${base}?`);
+        }
+        else {
+            core.info(`Subway: broadcast failed (${err.message}) but direct call succeeded`);
+        }
+    }
+}
+function post(url, body) {
+    return new Promise((resolve, reject) => {
+        const parsed = new URL(url);
+        const transport = parsed.protocol === "https:" ? https : http;
+        const options = {
+            hostname: parsed.hostname,
+            port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+            path: parsed.pathname + parsed.search,
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(body),
+            },
+        };
+        const req = transport.request(options, (res) => {
+            let data = "";
+            res.on("data", (chunk) => { data += chunk; });
+            res.on("end", () => {
+                if (res.statusCode && res.statusCode >= 400) {
+                    reject(new Error(`HTTP ${res.statusCode}: ${data.slice(0, 200)}`));
+                }
+                else {
+                    resolve(data);
+                }
+            });
+        });
+        req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+            req.destroy(new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`));
+        });
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+    });
+}
+function countBySeverity(findings) {
+    const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+    for (const f of findings)
+        counts[f.severity]++;
+    return counts;
+}
+function computeQuality(decision) {
+    const counts = countBySeverity(decision.findings);
+    const penalties = counts.critical * 0.25 + counts.high * 0.15 + counts.medium * 0.05 + counts.low * 0.01;
+    const quality_score = Math.max(0, Math.min(1, 1.0 - penalties));
+    let model_agreement = 1.0;
+    if (decision.anthropicReview && decision.openaiReview && decision.critique) {
+        const agreed = decision.critique.agreedFindings.length;
+        const disputed = decision.critique.disputedFindings.length;
+        const total = agreed + disputed;
+        model_agreement = total > 0 ? agreed / total : 1.0;
+    }
+    return { quality_score, model_agreement };
 }
 
 
