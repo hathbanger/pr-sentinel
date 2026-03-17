@@ -1,4 +1,4 @@
-# Copy this file to .github/workflows/pr-sentinel.yml in your repository.
+# Copy this file to .github/workflows/sentinel.yml in your repository.
 #
 # Required secrets:
 #   ANTHROPIC_API_KEY — Anthropic API key for Claude
@@ -10,12 +10,12 @@
 # Trigger behavior:
 #   - PR labeled "agent" → dual-model review on every push
 #   - Issue labeled "agent" → analyze code, propose fix
-#   - @pr-sentinel in any comment → run appropriate action
+#   - @sentinel in any comment → run appropriate action
 #   - Reply to bot comment → conversational response
 #
-# Optional: create .github/pr-sentinel.yml for per-repo configuration.
+# Optional: create .github/sentinel.yml for per-repo configuration.
 
-name: PR Sentinel
+name: Sentinel
 
 on:
   pull_request:
@@ -33,19 +33,19 @@ permissions:
   issues: write
 
 concurrency:
-  group: pr-sentinel-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  group: sentinel-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   sentinel:
-    name: PR Sentinel
+    name: Sentinel
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: |
       (github.event_name == 'pull_request') ||
       (github.event_name == 'issues') ||
       (github.event_name == 'issue_comment' && (
-        contains(github.event.comment.body, '@pr-sentinel') ||
+        contains(github.event.comment.body, '@sentinel') ||
         contains(github.event.comment.body, '/bot')
       ) && (
         github.event.comment.author_association == 'MEMBER' ||
@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: hathbanger/pr-sentinel@main
+      - uses: hathbanger/sentinel@main
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}

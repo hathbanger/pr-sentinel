@@ -5,7 +5,7 @@ import type { ReviewContext, ResponseContext } from "./types"
 
 type Octokit = ReturnType<typeof github.getOctokit>
 
-const RESPOND_SYSTEM = `You are PR Sentinel, an AI code review bot responding to a developer's question or comment about a code review finding.
+const RESPOND_SYSTEM = `You are Sentinel, an AI code review bot responding to a developer's question or comment about a code review finding.
 
 Guidelines:
 1. If they point out your finding was wrong, acknowledge it clearly
@@ -29,7 +29,7 @@ export async function handleResponse(
   const contextParts: string[] = []
 
   if (parentBody) {
-    contextParts.push(`## Original PR Sentinel Comment\n${parentBody}`)
+    contextParts.push(`## Original Sentinel Comment\n${parentBody}`)
   }
 
   if (ctx.pullRequest) {
@@ -105,7 +105,7 @@ async function resolveParentComment(
         })
 
         for (let i = comments.length - 1; i >= 0; i--) {
-          if (comments[i].body?.includes("PR Sentinel") && comments[i].id !== responseContext.commentId) {
+          if (comments[i].body?.includes("Sentinel") && comments[i].id !== responseContext.commentId) {
             return comments[i].body || ""
           }
         }
@@ -152,5 +152,5 @@ async function replyToReviewComment(
 
 function formatResponse(text: string): string {
   const cleaned = text.trim()
-  return `${cleaned}\n\n---\n*PR Sentinel*`
+  return `${cleaned}\n\n---\n*Sentinel*`
 }

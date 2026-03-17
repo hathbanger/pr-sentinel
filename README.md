@@ -1,10 +1,10 @@
-# PR Sentinel
+# Sentinel
 
 Dual-model AI review bot for GitHub PRs and issues. Label-gated. Drop-in.
 
 Anthropic reviews architecture and risk. OpenAI reviews implementation and bugs. They critique each other. You get the merged result.
 
-**OpenRouter fallback:** If either API key is missing, PR Sentinel falls back to OpenRouter automatically. You can run the full dual-model review with just an OpenRouter key.
+**OpenRouter fallback:** If either API key is missing, Sentinel falls back to OpenRouter automatically. You can run the full dual-model review with just an OpenRouter key.
 
 ---
 
@@ -16,11 +16,11 @@ gh secret set ANTHROPIC_API_KEY --body "sk-ant-..."
 gh secret set OPENAI_API_KEY --body "sk-..."
 
 # 2. Create the trigger label
-gh label create agent --color 0E8A16 --description "PR Sentinel: AI review and fix"
+gh label create agent --color 0E8A16 --description "Sentinel: AI review and fix"
 
 # 3. Add the workflow
-mkdir -p .github/workflows && cat > .github/workflows/pr-sentinel.yml << 'EOF'
-name: PR Sentinel
+mkdir -p .github/workflows && cat > .github/workflows/sentinel.yml << 'EOF'
+name: Sentinel
 
 on:
   pull_request:
@@ -38,19 +38,19 @@ permissions:
   issues: write
 
 concurrency:
-  group: pr-sentinel-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  group: sentinel-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   sentinel:
-    name: PR Sentinel
+    name: Sentinel
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: |
       (github.event_name == 'pull_request') ||
       (github.event_name == 'issues') ||
       (github.event_name == 'issue_comment' && (
-        contains(github.event.comment.body, '@pr-sentinel') ||
+        contains(github.event.comment.body, '@sentinel') ||
         contains(github.event.comment.body, '/bot')
       ) && (
         github.event.comment.author_association == 'MEMBER' ||
@@ -69,14 +69,14 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: hathbanger/pr-sentinel@main
+      - uses: hathbanger/sentinel@main
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
 EOF
 
 # Commit and push
-git add .github/workflows/pr-sentinel.yml && git commit -m "ci: add PR Sentinel" && git push
+git add .github/workflows/sentinel.yml && git commit -m "ci: add Sentinel" && git push
 ```
 
 Done. Add the `agent` label to any PR or issue to activate.
@@ -88,7 +88,7 @@ Done. Add the `agent` label to any PR or issue to activate.
 For agents with `gh` CLI access and repo permissions:
 
 ```bash
-gh secret set ANTHROPIC_API_KEY --body "$ANTHROPIC_API_KEY" && gh secret set OPENAI_API_KEY --body "$OPENAI_API_KEY" && gh label create agent --color 0E8A16 --description "PR Sentinel" 2>/dev/null; mkdir -p .github/workflows && curl -sL https://raw.githubusercontent.com/hathbanger/pr-sentinel/main/examples/pr-sentinel-review.yml -o .github/workflows/pr-sentinel.yml && git add .github/workflows/pr-sentinel.yml && git commit -m "ci: add PR Sentinel" && git push
+gh secret set ANTHROPIC_API_KEY --body "$ANTHROPIC_API_KEY" && gh secret set OPENAI_API_KEY --body "$OPENAI_API_KEY" && gh label create agent --color 0E8A16 --description "Sentinel" 2>/dev/null; mkdir -p .github/workflows && curl -sL https://raw.githubusercontent.com/hathbanger/sentinel/main/examples/sentinel-review.yml -o .github/workflows/sentinel.yml && git add .github/workflows/sentinel.yml && git commit -m "ci: add Sentinel" && git push
 ```
 
 ---
@@ -102,11 +102,11 @@ If you don't have direct Anthropic/OpenAI keys, use OpenRouter as the single pro
 gh secret set OPENROUTER_API_KEY --body "sk-or-..."
 
 # 2. Create the trigger label
-gh label create agent --color 0E8A16 --description "PR Sentinel: AI review and fix"
+gh label create agent --color 0E8A16 --description "Sentinel: AI review and fix"
 
 # 3. Add the workflow
-mkdir -p .github/workflows && cat > .github/workflows/pr-sentinel.yml << 'EOF'
-name: PR Sentinel
+mkdir -p .github/workflows && cat > .github/workflows/sentinel.yml << 'EOF'
+name: Sentinel
 
 on:
   pull_request:
@@ -124,19 +124,19 @@ permissions:
   issues: write
 
 concurrency:
-  group: pr-sentinel-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  group: sentinel-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   sentinel:
-    name: PR Sentinel
+    name: Sentinel
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: |
       (github.event_name == 'pull_request') ||
       (github.event_name == 'issues') ||
       (github.event_name == 'issue_comment' && (
-        contains(github.event.comment.body, '@pr-sentinel') ||
+        contains(github.event.comment.body, '@sentinel') ||
         contains(github.event.comment.body, '/bot')
       ) && (
         github.event.comment.author_association == 'MEMBER' ||
@@ -155,12 +155,12 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: hathbanger/pr-sentinel@main
+      - uses: hathbanger/sentinel@main
         with:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
 EOF
 
-git add .github/workflows/pr-sentinel.yml && git commit -m "ci: add PR Sentinel" && git push
+git add .github/workflows/sentinel.yml && git commit -m "ci: add Sentinel" && git push
 ```
 
 OpenRouter routes to `anthropic/claude-sonnet-4-20250514` for the architect role and `openai/gpt-4o` for the engineer role by default. Override with `openrouter_anthropic_model` and `openrouter_openai_model` inputs.
@@ -179,8 +179,8 @@ Nothing runs unless explicitly activated:
 | PR labeled | Label is `agent` | Review starts immediately |
 | Issue opened | Has `agent` label | Analyze code, propose/apply fix |
 | Issue labeled | Label is `agent` | Fix pipeline starts |
-| `@pr-sentinel` in any comment | On PR | Re-review |
-| `@pr-sentinel` in any comment | On issue | Analyze + propose fix |
+| `@sentinel` in any comment | On PR | Re-review |
+| `@sentinel` in any comment | On issue | Analyze + propose fix |
 | `/bot review` | On PR | Force re-review |
 | `/bot fix` | On issue | Force fix attempt |
 | Reply to bot comment | On PR review thread | Conversational response |
@@ -249,7 +249,7 @@ Confidence threshold is configurable (default 0.7). Below threshold → posts an
 
 ## Configuration
 
-Optional. Create `.github/pr-sentinel.yml` for per-repo settings:
+Optional. Create `.github/sentinel.yml` for per-repo settings:
 
 ```yaml
 mode: review
@@ -264,9 +264,9 @@ models:
 
 trigger:
   require_label: agent        # Label name that activates the bot
-  respond_to_mentions: true   # React to @pr-sentinel mentions
+  respond_to_mentions: true   # React to @sentinel mentions
   respond_to_replies: true    # Respond to replies on bot comments
-  bot_name: pr-sentinel       # Name for @mention detection
+  bot_name: sentinel          # Name for @mention detection
 
 review:
   max_files: 50               # Skip review if PR changes more files
@@ -301,11 +301,11 @@ Without this file, all defaults apply. The bot works out of the box.
 
 ## Context Files
 
-PR Sentinel reads these from your repo if they exist:
+Sentinel reads these from your repo if they exist:
 
 | File | What It Does |
 |------|--------------|
-| `.github/pr-sentinel.yml` | Configuration (see above) |
+| `.github/sentinel.yml` | Configuration (see above) |
 | `.github/review-rules.md` | Custom review instructions injected into model prompts |
 | `.github/architecture-notes.md` | Architecture context for smarter reviews |
 
@@ -343,7 +343,7 @@ Comment on any PR or issue:
 Use in downstream workflow steps:
 
 ```yaml
-- uses: hathbanger/pr-sentinel@main
+- uses: hathbanger/sentinel@main
   id: sentinel
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -418,7 +418,7 @@ Reactions on bot comments are readable via GitHub API for training signal.
 
 ## Agent Integration Notes
 
-**For AI agents installing PR Sentinel into a repo:**
+**For AI agents installing Sentinel into a repo:**
 
 Prerequisites:
 - `gh` CLI authenticated with repo access
@@ -440,7 +440,7 @@ gh label list | grep agent
 gh pr edit <number> --add-label agent
 ```
 
-To customize for a specific repo, write `.github/pr-sentinel.yml` before pushing. The bot reads it on every run.
+To customize for a specific repo, write `.github/sentinel.yml` before pushing. The bot reads it on every run.
 
 To install across multiple repos:
 ```bash
@@ -448,9 +448,9 @@ for repo in org/repo1 org/repo2 org/repo3; do
   gh secret set ANTHROPIC_API_KEY --body "$ANTHROPIC_API_KEY" -R "$repo"
   gh secret set OPENAI_API_KEY --body "$OPENAI_API_KEY" -R "$repo"
   gh label create agent --color 0E8A16 -R "$repo" 2>/dev/null
-  gh api repos/$repo/contents/.github/workflows/pr-sentinel.yml \
-    -X PUT -f message="ci: add PR Sentinel" \
-    -f content="$(base64 < .github/workflows/pr-sentinel.yml)"
+  gh api repos/$repo/contents/.github/workflows/sentinel.yml \
+    -X PUT -f message="ci: add Sentinel" \
+    -f content="$(base64 < .github/workflows/sentinel.yml)"
 done
 ```
 

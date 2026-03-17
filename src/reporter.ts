@@ -4,7 +4,7 @@ import type { FinalDecision, FinalAction, ReviewFinding, FindingSeverity, Findin
 
 type Octokit = ReturnType<typeof github.getOctokit>
 
-const COMMENT_MARKER = "<!-- pr-sentinel-review -->"
+const COMMENT_MARKER = "<!-- sentinel-review -->"
 
 const SEVERITY_EMOJI: Record<FindingSeverity, string> = {
   critical: "🔴",
@@ -76,14 +76,14 @@ export async function reportIssueTriage(
   const { owner, repo } = github.context.repo
   const body = [
     COMMENT_MARKER,
-    "## PR Sentinel — Issue Triage",
+    "## Sentinel — Issue Triage",
     "",
     `**Classification:** ${classification}`,
     "",
     summary,
     "",
     "---",
-    "*Triaged by PR Sentinel*",
+    "*Triaged by Sentinel*",
   ].join("\n")
 
   await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body })
@@ -105,7 +105,7 @@ export async function reportFixResult(
       mode === "propose_and_pr" ? "Fix PR Created" :
       "Fix Applied (Auto-merged)"
 
-    lines.push(`## PR Sentinel — ${modeLabel} ✅`)
+    lines.push(`## Sentinel — ${modeLabel} ✅`)
     lines.push("")
     lines.push(`**Confidence:** ${(plan.confidence * 100).toFixed(0)}%`)
     lines.push("")
@@ -153,7 +153,7 @@ export async function reportFixResult(
       lines.push(`→ ${result.prUrl}`)
     }
   } else {
-    lines.push("## PR Sentinel — Fix Analysis ℹ️")
+    lines.push("## Sentinel — Fix Analysis ℹ️")
     lines.push("")
     lines.push(`Could not generate a fix: ${result.error}`)
 
@@ -173,7 +173,7 @@ export async function reportFixResult(
   lines.push("---")
   lines.push("*Did we get this right? 👍 / 👎 to inform future fixes*")
   lines.push("")
-  lines.push("*PR Sentinel*")
+  lines.push("*Sentinel*")
 
   const body = lines.join("\n")
   await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body })
@@ -186,14 +186,14 @@ export async function reportFailure(
 ): Promise<void> {
   const body = [
     COMMENT_MARKER,
-    "## PR Sentinel — Review Failed",
+    "## Sentinel — Review Failed",
     "",
     `Review could not be completed: ${error}`,
     "",
     "This is non-destructive — no code was modified.",
     "",
     "---",
-    "*PR Sentinel*",
+    "*Sentinel*",
   ].join("\n")
 
   try {
@@ -247,7 +247,7 @@ async function submitPRReview(
       pull_number: prNumber,
       commit_id: commitSha,
       event,
-      body: `PR Sentinel reviewed this PR with ${decision.findings.length} finding(s).`,
+      body: `Sentinel reviewed this PR with ${decision.findings.length} finding(s).`,
       comments,
     })
 
@@ -301,7 +301,7 @@ async function dismissPreviousReviews(octokit: Octokit, prNumber: number): Promi
 
     for (const review of reviews) {
       if (
-        review.body?.includes("PR Sentinel") &&
+        review.body?.includes("Sentinel") &&
         review.state === "CHANGES_REQUESTED"
       ) {
         try {
@@ -310,7 +310,7 @@ async function dismissPreviousReviews(octokit: Octokit, prNumber: number): Promi
             repo,
             pull_number: prNumber,
             review_id: review.id,
-            message: "Superseded by new PR Sentinel review",
+            message: "Superseded by new Sentinel review",
           })
         } catch {
           core.debug(`Could not dismiss review ${review.id}`)
@@ -405,7 +405,7 @@ function formatSummaryComment(
     decision.action === "request_changes" ? "⚠️" :
     decision.action === "needs_human_review" ? "🛑" : "ℹ️"
 
-  lines.push(`## PR Sentinel Review ${statusEmoji}`)
+  lines.push(`## Sentinel Review ${statusEmoji}`)
   lines.push("")
 
   if (decision.findings.length === 0) {
@@ -516,7 +516,7 @@ function formatSummaryComment(
   const seconds = (decision.durationMs / 1000).toFixed(1)
 
   lines.push("")
-  lines.push(`*PR Sentinel — dual-model review in ${seconds}s · ${totalTokens.toLocaleString()} tokens*`)
+  lines.push(`*Sentinel — dual-model review in ${seconds}s · ${totalTokens.toLocaleString()} tokens*`)
 
   return lines.join("\n")
 }
@@ -558,7 +558,7 @@ async function upsertComment(octokit: Octokit, issueNumber: number, body: string
 
 async function postStepSummary(decision: FinalDecision): Promise<void> {
   const lines: string[] = []
-  lines.push("### PR Sentinel Review")
+  lines.push("### Sentinel Review")
   lines.push("")
   lines.push("| Metric | Value |")
   lines.push("|--------|-------|")

@@ -1,5 +1,5 @@
 {
-  "name": "pr-sentinel",
+  "name": "sentinel",
   "version": "0.1.0",
   "description": "Dual-model AI review bot for GitHub pull requests and issues",
   "main": "dist/index.js",

@@ -34,7 +34,7 @@ export const SentinelConfigSchema = z.object({
       require_label: z.string().default("agent"),  // set to "" to run on every PR/issue
       respond_to_mentions: z.boolean().default(true),
       respond_to_replies: z.boolean().default(true),
-      bot_name: z.string().default("pr-sentinel"),
+      bot_name: z.string().default("sentinel"),
     })
     .default({}),
 

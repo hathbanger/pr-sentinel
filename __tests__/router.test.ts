@@ -49,7 +49,7 @@ const defaultPolicies: RepoPolicies = {
     requireLabel: "agent",
     respondToMentions: true,
     respondToReplies: true,
-    botName: "pr-sentinel",
+    botName: "sentinel",
   },
   fix: {
     mode: "propose_and_pr",
@@ -165,12 +165,12 @@ describe("routeEvent", () => {
   })
 
   describe("@mention routing", () => {
-    it("triggers pr_review when @pr-sentinel mentioned on PR comment", () => {
+    it("triggers pr_review when @sentinel mentioned on PR comment", () => {
       ;(github.context as any).eventName = "issue_comment"
       ;(github.context as any).payload = {
         action: "created",
         repository: { default_branch: "main" },
-        comment: { body: "Hey @pr-sentinel can you review this?", id: 1, author_association: "MEMBER" },
+        comment: { body: "Hey @sentinel can you review this?", id: 1, author_association: "MEMBER" },
         issue: {
           number: 42,
           title: "Some PR",
@@ -183,12 +183,12 @@ describe("routeEvent", () => {
       expect(result.actionType).toBe("pr_review")
     })
 
-    it("triggers issue_fix when @pr-sentinel mentioned on issue comment", () => {
+    it("triggers issue_fix when @sentinel mentioned on issue comment", () => {
       ;(github.context as any).eventName = "issue_comment"
       ;(github.context as any).payload = {
         action: "created",
         repository: { default_branch: "main" },
-        comment: { body: "@pr-sentinel fix this please", id: 1, author_association: "MEMBER" },
+        comment: { body: "@sentinel fix this please", id: 1, author_association: "MEMBER" },
         issue: {
           number: 10,
           title: "Bug",
@@ -234,7 +234,7 @@ describe("routeEvent", () => {
         action: "created",
         repository: { default_branch: "main" },
         comment: {
-          body: "@pr-sentinel re-review this file",
+          body: "@sentinel re-review this file",
           id: 100,
           author_association: "MEMBER",
         },

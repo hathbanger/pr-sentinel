@@ -3,7 +3,7 @@ import * as github from "@actions/github"
 import type { ActionType, EventType, SlashCommand, RoutedEvent, ReviewContext, RepoPolicies, ResponseContext } from "./types"
 
 const SLASH_COMMANDS = ["review", "fix", "triage", "plan", "explain", "retry", "ignore", "security-review", "tests"]
-const BOT_MARKER = "PR Sentinel"
+const BOT_MARKER = "Sentinel"
 const TRUSTED_ASSOCIATIONS = ["MEMBER", "OWNER", "COLLABORATOR"]
 
 export function routeEvent(policies: RepoPolicies): RoutedEvent {

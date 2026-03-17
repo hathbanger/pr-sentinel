@@ -20,7 +20,7 @@ async function run(): Promise<void> {
     const anthropicKey = core.getInput("anthropic_api_key")
     const openaiKey = core.getInput("openai_api_key")
     const openrouterKey = core.getInput("openrouter_api_key")
-    const configPath = core.getInput("config_path") || ".github/pr-sentinel.yml"
+    const configPath = core.getInput("config_path") || ".github/sentinel.yml"
     const modeOverride = core.getInput("mode") || undefined
     const debug = core.getInput("debug") === "true"
 
@@ -111,9 +111,9 @@ async function run(): Promise<void> {
       }
     }
 
-    core.info(`PR Sentinel completed in ${((Date.now() - start) / 1000).toFixed(1)}s`)
+    core.info(`Sentinel completed in ${((Date.now() - start) / 1000).toFixed(1)}s`)
   } catch (err) {
-    core.setFailed(`PR Sentinel failed: ${err instanceof Error ? err.message : String(err)}`)
+    core.setFailed(`Sentinel failed: ${err instanceof Error ? err.message : String(err)}`)
 
     try {
       const githubToken = core.getInput("github_token") || process.env.GITHUB_TOKEN || ""

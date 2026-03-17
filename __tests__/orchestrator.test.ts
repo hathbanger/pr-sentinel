@@ -43,7 +43,7 @@ function makeContext(overrides?: Partial<ReviewContext>): ReviewContext {
         requireLabel: "agent",
         respondToMentions: true,
         respondToReplies: true,
-        botName: "pr-sentinel",
+        botName: "sentinel",
       },
       fix: {
         mode: "propose_and_pr" as const,

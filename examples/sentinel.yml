@@ -1,4 +1,4 @@
-# .github/pr-sentinel.yml — Per-repo configuration
+# .github/sentinel.yml — Per-repo configuration
 # All fields are optional. Defaults are shown below.
 
 mode: review # review | review_and_suggest | review_and_patch | issue_triage | manual_only
@@ -13,9 +13,9 @@ models:
 
 trigger:
   require_label: agent # Only run when this label is present on PR/issue
-  respond_to_mentions: true # Respond when @pr-sentinel is mentioned
+  respond_to_mentions: true # Respond when @sentinel is mentioned
   respond_to_replies: true # Respond to replies on bot comments
-  bot_name: pr-sentinel # Name for @mention detection
+  bot_name: sentinel # Name for @mention detection
 
 review:
   max_files: 50
