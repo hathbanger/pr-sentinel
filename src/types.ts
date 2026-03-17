@@ -1,5 +1,12 @@
 export type EventType = "pull_request" | "issue" | "issue_comment" | "pull_request_review_comment"
 
+export interface SubwayContact {
+  name: string
+  relay: string
+  registered_at: string
+  source: "pi-extension" | "claude-code" | "cli"
+}
+
 export type ReviewMode =
   | "review"
   | "review_and_suggest"

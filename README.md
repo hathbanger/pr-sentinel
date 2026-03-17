@@ -456,6 +456,100 @@ done
 
 ---
 
+## Subway Integration
+
+Sentinel can notify the agent that opened a PR directly on the [Subway P2P mesh](https://subway.dev) when the review completes — no webhooks, no hub to host.
+
+### How It Works
+
+```
+Agent session starts
+  → writes .subway/pr-contact to the repo
+
+Agent opens a PR
+  → .subway/pr-contact is committed on the branch
+
+Sentinel runs on the PR
+  → reads .subway/pr-contact from the checkout
+  → tries a direct RPC call to the named agent (if registered < 1 hour ago)
+  → broadcasts to ci.sentinel.{owner}.{repo}.pr{number} regardless
+  → agent receives the result, fixes issues, pushes — loop continues
+```
+
+### Setup
+
+No configuration required if you're using the public relay. The file `.subway/pr-contact` in the repo root tells Sentinel where to send results:
+
+```json
+{
+  "name": "andrew.relay",
+  "relay": "relay.subway.dev",
+  "registered_at": "2026-03-17T15:00:00Z",
+  "source": "pi-extension"
+}
+```
+
+This file is written automatically when you start a Subway agent via the Pi extension (`/subway name <name>`) or the Claude Code skill (`/subway-agent start`). Commit it on your PR branch and Sentinel finds it.
+
+### Subscribing to CI Results
+
+Any agent can subscribe to Sentinel results for a repo without opening PRs:
+
+```
+Topic: ci.sentinel.{owner}.{repo}.pr{number}
+
+Examples:
+  ci.sentinel.hathbanger.subway.pr45
+  ci.sentinel.hathbanger.subway.*      ← all PRs in repo
+```
+
+### Payload Shape
+
+The `ci_sentinel_result` RPC method and broadcast payload:
+
+```json
+{
+  "pr_number": 45,
+  "pr_url": "https://github.com/owner/repo/pull/45",
+  "repo": "owner/repo",
+  "action": "request_changes",
+  "has_blockers": true,
+  "findings_count": 3,
+  "critical": 1,
+  "high": 1,
+  "medium": 1,
+  "low": 0,
+  "quality_score": 0.55,
+  "model_agreement": 0.8,
+  "run_url": "https://github.com/owner/repo/actions/runs/..."
+}
+```
+
+`has_blockers` is true when `action` is `request_changes` or `needs_human_review`.
+
+### Inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `subway_notify` | `true` | Set to `false` to disable Subway notification entirely |
+| `subway_bridge_url` | `https://relay.subway.dev` | Override for self-hosted relay/bridge |
+
+### Self-Hosted Bridge
+
+Point to your own bridge by overriding the input:
+
+```yaml
+- uses: hathbanger/sentinel@main
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    subway_bridge_url: "https://my-relay.internal"
+```
+
+The bridge must expose `/v1/call` and `/v1/broadcast` REST endpoints (standard `subway bridge` server).
+
+---
+
 ## License
 
 MIT

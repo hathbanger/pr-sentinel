@@ -10,6 +10,7 @@ import { handleResponse } from "./responder"
 import { AnthropicClient } from "./models/anthropic"
 import { OpenAIClient } from "./models/openai"
 import { OpenRouterClient } from "./models/openrouter"
+import { readPrContact, notifySubwayAgent } from "./subway"
 import type { ModelClient } from "./models/types"
 
 async function run(): Promise<void> {
@@ -161,6 +162,23 @@ async function handlePRReview(
   }
 
   await reportReview(octokit, decision, ctx.pullRequest!.number)
+
+  if (core.getInput("subway_notify") !== "false") {
+    try {
+      const contact = readPrContact()
+      const bridgeUrl = core.getInput("subway_bridge_url") || "https://relay.subway.dev"
+      const { owner, name } = ctx.repository
+      const prNumber = ctx.pullRequest!.number
+      await notifySubwayAgent(contact, decision, {
+        prNumber,
+        prUrl: `https://github.com/${owner}/${name}/pull/${prNumber}`,
+        repo: `${owner}/${name}`,
+        runUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY ?? `${owner}/${name}`}/actions/runs/${process.env.GITHUB_RUN_ID ?? ""}`,
+      }, bridgeUrl)
+    } catch (err) {
+      core.info(`Subway notification failed non-fatally: ${(err as Error).message}`)
+    }
+  }
 }
 
 async function handleIssueFix(
