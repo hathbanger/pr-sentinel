@@ -60,6 +60,8 @@ export async function reportReview(
   }
 
   if (decision.findings.length === 0 && !summaryOnClean) {
+    // Still emit step summary + action outputs even when skipping the PR comment,
+    // so downstream jobs and RL training can consume quality_score / findings_count.
     await postStepSummary(decision)
     setOutputs(decision)
     core.info("No findings — skipping summary comment (summary_on_clean is false)")
