@@ -512,6 +512,7 @@ The `ci_sentinel_result` RPC method and broadcast payload:
   "pr_number": 45,
   "pr_url": "https://github.com/owner/repo/pull/45",
   "repo": "owner/repo",
+  "head_sha": "abc123...",
   "action": "request_changes",
   "has_blockers": true,
   "findings_count": 3,

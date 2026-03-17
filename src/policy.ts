@@ -20,7 +20,8 @@ export async function loadPolicies(
   const openaiModel = core.getInput("openai_model") || config.models.openai.model
   const botNameInput = core.getInput("bot_name")
   const fixModeInput = core.getInput("fix_mode")
-  const triggerLabelInput = core.getInput("trigger_label")
+  const triggerLabelInput = core.getInput("trigger_label", { required: false, trimWhitespace: true })
+  const triggerLabelProvided = triggerLabelInput !== ""
 
   return {
     mode,
@@ -40,7 +41,7 @@ export async function loadPolicies(
       openai: { enabled: config.models.openai.enabled, model: openaiModel },
     },
     trigger: {
-      requireLabel: triggerLabelInput || config.trigger.require_label,
+      requireLabel: triggerLabelProvided ? triggerLabelInput : config.trigger.require_label,
       respondToMentions: config.trigger.respond_to_mentions,
       respondToReplies: config.trigger.respond_to_replies,
       botName: botNameInput || config.trigger.bot_name,

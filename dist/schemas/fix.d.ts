@@ -75,6 +75,9 @@ export declare const FixPlanSchema: z.ZodObject<{
     test_suggestions: z.ZodArray<z.ZodString, "many">;
     risk_notes: z.ZodArray<z.ZodString, "many">;
 }, "strip", z.ZodTypeAny, {
+    analysis: string;
+    fixable: boolean;
+    confidence: number;
     files: {
         path: string;
         action: "modify" | "create" | "delete";
@@ -85,13 +88,13 @@ export declare const FixPlanSchema: z.ZodObject<{
             search: string;
         }[] | undefined;
     }[];
-    analysis: string;
-    fixable: boolean;
-    confidence: number;
     commit_message: string;
     test_suggestions: string[];
     risk_notes: string[];
 }, {
+    analysis: string;
+    fixable: boolean;
+    confidence: number;
     files: {
         path: string;
         action: "modify" | "create" | "delete";
@@ -102,9 +105,6 @@ export declare const FixPlanSchema: z.ZodObject<{
             search: string;
         }[] | undefined;
     }[];
-    analysis: string;
-    fixable: boolean;
-    confidence: number;
     commit_message: string;
     test_suggestions: string[];
     risk_notes: string[];

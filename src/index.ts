@@ -174,6 +174,7 @@ async function handlePRReview(
         prNumber,
         prUrl: `https://github.com/${owner}/${name}/pull/${prNumber}`,
         repo: `${owner}/${name}`,
+        headSha: process.env.GITHUB_SHA ?? "",
         runUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY ?? `${owner}/${name}`}/actions/runs/${process.env.GITHUB_RUN_ID ?? ""}`,
       }, bridgeUrl)
     } catch (err) {

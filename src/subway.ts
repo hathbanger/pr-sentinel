@@ -14,12 +14,14 @@ export interface SubwayNotifyContext {
   prUrl: string
   repo: string
   runUrl: string
+  headSha: string
 }
 
 export interface SubwayPayload {
   pr_number: number
   pr_url: string
   repo: string
+  head_sha: string
   action: string
   has_blockers: boolean
   findings_count: number
@@ -73,6 +75,7 @@ function buildPayload(decision: FinalDecision, ctx: SubwayNotifyContext): Subway
     pr_number: ctx.prNumber,
     pr_url: ctx.prUrl,
     repo: ctx.repo,
+    head_sha: ctx.headSha,
     action: decision.action,
     has_blockers: decision.action === "request_changes" || decision.action === "needs_human_review",
     findings_count: decision.findings.length,

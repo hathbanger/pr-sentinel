@@ -33,9 +33,8 @@ inputs:
     required: false
     default: "gpt-4o"
   trigger_label:
-    description: "Label required to trigger reviews/fixes (default: agent)"
+    description: "Label required to trigger reviews/fixes. Leave unset to defer to sentinel.yml (default in config: agent, set to '' to run on every PR)"
     required: false
-    default: "agent"
   bot_name:
     description: "Bot name for @mention detection (default: sentinel)"
     required: false
