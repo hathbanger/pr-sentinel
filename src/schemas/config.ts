@@ -47,6 +47,7 @@ export const SentinelConfigSchema = z.object({
       severity_threshold: z
         .enum(["low", "medium", "high", "critical"])
         .default("medium"),
+      summary_on_clean: z.boolean().default(false),
     })
     .default({}),
 

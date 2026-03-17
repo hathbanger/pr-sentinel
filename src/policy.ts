@@ -51,6 +51,9 @@ export async function loadPolicies(
       createDraftPr: config.fix.create_draft_pr,
       maxRetryCount: config.fix.max_retry_count,
     },
+    review: {
+      summaryOnClean: config.review.summary_on_clean,
+    },
   }
 }
 

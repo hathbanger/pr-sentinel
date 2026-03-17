@@ -46,7 +46,8 @@ const REVIEW_EVENT_MAP: Partial<Record<FinalAction, "COMMENT" | "REQUEST_CHANGES
 export async function reportReview(
   octokit: Octokit,
   decision: FinalDecision,
-  prNumber: number
+  prNumber: number,
+  summaryOnClean = false
 ): Promise<void> {
   const { owner, repo } = github.context.repo
   const inlineFindings = decision.findings.filter((f) => f.lineStart && f.lineStart > 0)
@@ -56,6 +57,15 @@ export async function reportReview(
 
   if (inlineFindings.length > 0) {
     await submitPRReview(octokit, decision, prNumber, inlineFindings)
+  }
+
+  if (decision.findings.length === 0 && !summaryOnClean) {
+    // Still emit step summary + action outputs even when skipping the PR comment,
+    // so downstream jobs and RL training can consume quality_score / findings_count.
+    await postStepSummary(decision)
+    setOutputs(decision)
+    core.info("No findings — skipping summary comment (summary_on_clean is false)")
+    return
   }
 
   const summaryBody = formatSummaryComment(decision, nonInlineFindings, inlineFindings.length)

@@ -116,6 +116,9 @@ export interface RepoPolicies {
     createDraftPr: boolean
     maxRetryCount: number
   }
+  review: {
+    summaryOnClean: boolean
+  }
 }
 
 export interface ReviewFinding {

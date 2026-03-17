@@ -73,7 +73,7 @@ async function run(): Promise<void> {
 
     switch (routed.actionType) {
       case "pr_review": {
-        await handlePRReview(octokit, routed.context, anthropic, openai, debug)
+        await handlePRReview(octokit, routed.context, anthropic, openai, debug, policies.review.summaryOnClean)
         break
       }
       case "issue_fix": {
@@ -137,7 +137,8 @@ async function handlePRReview(
   ctx: import("./types").ReviewContext,
   anthropic: ModelClient | null,
   openai: ModelClient | null,
-  debug: boolean
+  debug: boolean,
+  summaryOnClean = false
 ): Promise<void> {
   if (!ctx.pullRequest) {
     core.warning("No PR context available")
@@ -161,7 +162,7 @@ async function handlePRReview(
     core.info(`Decision: ${decision.action}, ${decision.findings.length} findings, ${decision.durationMs}ms`)
   }
 
-  await reportReview(octokit, decision, ctx.pullRequest!.number)
+  await reportReview(octokit, decision, ctx.pullRequest!.number, summaryOnClean)
 
   if (core.getInput("subway_notify") !== "false") {
     try {

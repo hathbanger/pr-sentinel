@@ -63,18 +63,21 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         comment_style: z.ZodDefault<z.ZodEnum<["concise", "comprehensive"]>>;
         inline_comments: z.ZodDefault<z.ZodBoolean>;
         severity_threshold: z.ZodDefault<z.ZodEnum<["low", "medium", "high", "critical"]>>;
+        summary_on_clean: z.ZodDefault<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         max_files: number;
         max_patch_chars: number;
         comment_style: "concise" | "comprehensive";
         inline_comments: boolean;
         severity_threshold: "low" | "medium" | "high" | "critical";
+        summary_on_clean: boolean;
     }, {
         max_files?: number | undefined;
         max_patch_chars?: number | undefined;
         comment_style?: "concise" | "comprehensive" | undefined;
         inline_comments?: boolean | undefined;
         severity_threshold?: "low" | "medium" | "high" | "critical" | undefined;
+        summary_on_clean?: boolean | undefined;
     }>>;
     fix: z.ZodDefault<z.ZodObject<{
         mode: z.ZodDefault<z.ZodEnum<["propose_only", "propose_and_pr", "yolo"]>>;
@@ -123,6 +126,7 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         comment_style: "concise" | "comprehensive";
         inline_comments: boolean;
         severity_threshold: "low" | "medium" | "high" | "critical";
+        summary_on_clean: boolean;
     };
     validation: {
         commands: string[];
@@ -161,6 +165,7 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         comment_style?: "concise" | "comprehensive" | undefined;
         inline_comments?: boolean | undefined;
         severity_threshold?: "low" | "medium" | "high" | "critical" | undefined;
+        summary_on_clean?: boolean | undefined;
     } | undefined;
     validation?: {
         commands?: string[] | undefined;

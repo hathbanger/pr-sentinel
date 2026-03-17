@@ -36534,7 +36534,7 @@ async function run() {
         }
         switch (routed.actionType) {
             case "pr_review": {
-                await handlePRReview(octokit, routed.context, anthropic, openai, debug);
+                await handlePRReview(octokit, routed.context, anthropic, openai, debug, policies.review.summaryOnClean);
                 break;
             }
             case "issue_fix": {
@@ -36595,7 +36595,7 @@ async function run() {
         }
     }
 }
-async function handlePRReview(octokit, ctx, anthropic, openai, debug) {
+async function handlePRReview(octokit, ctx, anthropic, openai, debug, summaryOnClean = false) {
     if (!ctx.pullRequest) {
         core.warning("No PR context available");
         return;
@@ -36612,7 +36612,7 @@ async function handlePRReview(octokit, ctx, anthropic, openai, debug) {
     if (debug) {
         core.info(`Decision: ${decision.action}, ${decision.findings.length} findings, ${decision.durationMs}ms`);
     }
-    await (0, reporter_1.reportReview)(octokit, decision, ctx.pullRequest.number);
+    await (0, reporter_1.reportReview)(octokit, decision, ctx.pullRequest.number, summaryOnClean);
     if (core.getInput("subway_notify") !== "false") {
         try {
             const contact = (0, subway_1.readPrContact)();
@@ -37823,6 +37823,9 @@ async function loadPolicies(octokit, configPath, modeOverride) {
             createDraftPr: config.fix.create_draft_pr,
             maxRetryCount: config.fix.max_retry_count,
         },
+        review: {
+            summaryOnClean: config.review.summary_on_clean,
+        },
     };
 }
 function evaluateTrust(ctx) {
@@ -37969,13 +37972,21 @@ const REVIEW_EVENT_MAP = {
     suggest_patch: "COMMENT",
     decline: "COMMENT",
 };
-async function reportReview(octokit, decision, prNumber) {
+async function reportReview(octokit, decision, prNumber, summaryOnClean = false) {
     const { owner, repo } = github.context.repo;
     const inlineFindings = decision.findings.filter((f) => f.lineStart && f.lineStart > 0);
     const nonInlineFindings = decision.findings.filter((f) => !f.lineStart || f.lineStart <= 0);
     await dismissPreviousReviews(octokit, prNumber);
     if (inlineFindings.length > 0) {
         await submitPRReview(octokit, decision, prNumber, inlineFindings);
+    }
+    if (decision.findings.length === 0 && !summaryOnClean) {
+        // Still emit step summary + action outputs even when skipping the PR comment,
+        // so downstream jobs and RL training can consume quality_score / findings_count.
+        await postStepSummary(decision);
+        setOutputs(decision);
+        core.info("No findings — skipping summary comment (summary_on_clean is false)");
+        return;
     }
     const summaryBody = formatSummaryComment(decision, nonInlineFindings, inlineFindings.length);
     await upsertComment(octokit, prNumber, summaryBody);
@@ -39004,6 +39015,7 @@ exports.SentinelConfigSchema = zod_1.z.object({
         severity_threshold: zod_1.z
             .enum(["low", "medium", "high", "critical"])
             .default("medium"),
+        summary_on_clean: zod_1.z.boolean().default(false),
     })
         .default({}),
     fix: zod_1.z
