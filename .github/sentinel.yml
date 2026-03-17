@@ -30,4 +30,5 @@ fix:
 security:
   restricted_paths:
     - ".github/workflows/**"
+    - ".github/sentinel.yml"
   block_fork_mutation: true
