@@ -69,7 +69,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: hathbanger/sentinel@main
+      - uses: hathbanger/pr-sentinel@main
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
@@ -88,7 +88,7 @@ Done. Add the `agent` label to any PR or issue to activate.
 For agents with `gh` CLI access and repo permissions:
 
 ```bash
-gh secret set ANTHROPIC_API_KEY --body "$ANTHROPIC_API_KEY" && gh secret set OPENAI_API_KEY --body "$OPENAI_API_KEY" && gh label create agent --color 0E8A16 --description "Sentinel" 2>/dev/null; mkdir -p .github/workflows && curl -sL https://raw.githubusercontent.com/hathbanger/sentinel/main/examples/sentinel-review.yml -o .github/workflows/sentinel.yml && git add .github/workflows/sentinel.yml && git commit -m "ci: add Sentinel" && git push
+gh secret set ANTHROPIC_API_KEY --body "$ANTHROPIC_API_KEY" && gh secret set OPENAI_API_KEY --body "$OPENAI_API_KEY" && gh label create agent --color 0E8A16 --description "Sentinel" 2>/dev/null; mkdir -p .github/workflows && curl -sL https://raw.githubusercontent.com/hathbanger/pr-sentinel/main/examples/sentinel-review.yml -o .github/workflows/sentinel.yml && git add .github/workflows/sentinel.yml && git commit -m "ci: add Sentinel" && git push
 ```
 
 ---
@@ -155,7 +155,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: hathbanger/sentinel@main
+      - uses: hathbanger/pr-sentinel@main
         with:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
 EOF
@@ -343,7 +343,7 @@ Comment on any PR or issue:
 Use in downstream workflow steps:
 
 ```yaml
-- uses: hathbanger/sentinel@main
+- uses: hathbanger/pr-sentinel@main
   id: sentinel
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -555,7 +555,7 @@ The `ci_sentinel_result` RPC method and broadcast payload:
 Point to your own bridge by overriding the input:
 
 ```yaml
-- uses: hathbanger/sentinel@main
+- uses: hathbanger/pr-sentinel@main
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}

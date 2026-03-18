@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: hathbanger/sentinel@main
+      - uses: hathbanger/pr-sentinel@main
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
