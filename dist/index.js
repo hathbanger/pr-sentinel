@@ -39293,15 +39293,20 @@ function parseTrailerContact(msg) {
     return null;
 }
 function readCommitContact(headSha = "HEAD") {
-    if (headSha !== "HEAD" && !/^[a-f0-9]{7,40}$/i.test(headSha)) {
-        core.info(`Subway: ignoring invalid headSha — ${headSha}`);
-        return null;
-    }
     try {
-        const msg = cp.execSync(`git log -1 --format=%B ${headSha}`, {
+        const result = cp.spawnSync("git", ["log", "-1", "--format=%B", headSha], {
             encoding: "utf-8",
             stdio: ["pipe", "pipe", "pipe"],
-        }).trim();
+        });
+        if (result.error) {
+            core.info(`Subway: git spawn failed — ${result.error.message}`);
+            return null;
+        }
+        if (result.status !== 0) {
+            core.info(`Subway: git log failed — ${result.stderr?.trim() || "unknown error"}`);
+            return null;
+        }
+        const msg = (result.stdout ?? "").trim();
         const contact = parseTrailerContact(msg);
         if (contact)
             core.info(`Subway: found ${SUBWAY_TRAILER} trailer → ${contact.name}`);
