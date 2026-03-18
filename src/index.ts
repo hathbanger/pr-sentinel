@@ -182,7 +182,7 @@ async function handlePRReview(
           prNumber,
           prUrl: `https://github.com/${owner}/${name}/pull/${prNumber}`,
           repo: `${owner}/${name}`,
-          headSha: process.env.GITHUB_SHA ?? "unknown",
+          headSha: (github.context.payload.pull_request?.head?.sha as string | undefined) ?? process.env.GITHUB_SHA ?? "unknown",
           prState,
           runUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY ?? `${owner}/${name}`}/actions/runs/${process.env.GITHUB_RUN_ID ?? ""}`,
         }, bridgeUrl)
