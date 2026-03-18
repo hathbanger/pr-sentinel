@@ -171,9 +171,17 @@ async function handlePRReview(
       const { owner, name } = ctx.repository
       const prNumber = ctx.pullRequest!.number
 
-      const { data: prData } = await octokit.rest.pulls.get({ owner, repo: name, pull_number: prNumber })
-      const prState: "open" | "closed" | "merged" =
-        prData.merged ? "merged" : prData.state === "open" ? "open" : "closed"
+      // Use event payload for PR state — avoids an extra API call.
+      // github.context.payload.pull_request is populated for pull_request events;
+      // fall back to API only for non-PR triggers (e.g. issue_comment on a PR).
+      const prPayload = github.context.payload.pull_request
+      let prState: "open" | "closed" | "merged"
+      if (prPayload) {
+        prState = prPayload.merged ? "merged" : prPayload.state === "open" ? "open" : "closed"
+      } else {
+        const { data: prData } = await octokit.rest.pulls.get({ owner, repo: name, pull_number: prNumber })
+        prState = prData.merged ? "merged" : prData.state === "open" ? "open" : "closed"
+      }
 
       if (prState !== "open") {
         core.info(`Subway: PR #${prNumber} is ${prState} — skipping notification`)
