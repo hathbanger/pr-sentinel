@@ -15,6 +15,7 @@ export interface SubwayNotifyContext {
   repo: string
   runUrl: string
   headSha: string
+  prState: "open" | "closed" | "merged"
 }
 
 export interface SubwayPayload {
@@ -22,6 +23,7 @@ export interface SubwayPayload {
   pr_url: string
   repo: string
   head_sha: string
+  pr_state: "open" | "closed" | "merged"
   action: string
   has_blockers: boolean
   findings_count: number
@@ -76,6 +78,7 @@ function buildPayload(decision: FinalDecision, ctx: SubwayNotifyContext): Subway
     pr_url: ctx.prUrl,
     repo: ctx.repo,
     head_sha: ctx.headSha,
+    pr_state: ctx.prState,
     action: decision.action,
     has_blockers: decision.action === "request_changes" || decision.action === "needs_human_review",
     findings_count: decision.findings.length,

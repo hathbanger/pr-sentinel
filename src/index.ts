@@ -170,13 +170,31 @@ async function handlePRReview(
       const bridgeUrl = core.getInput("subway_bridge_url") || "https://relay.subway.dev"
       const { owner, name } = ctx.repository
       const prNumber = ctx.pullRequest!.number
-      await notifySubwayAgent(contact, decision, {
-        prNumber,
-        prUrl: `https://github.com/${owner}/${name}/pull/${prNumber}`,
-        repo: `${owner}/${name}`,
-        headSha: process.env.GITHUB_SHA ?? "unknown",
-        runUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY ?? `${owner}/${name}`}/actions/runs/${process.env.GITHUB_RUN_ID ?? ""}`,
-      }, bridgeUrl)
+
+      // Use event payload for PR state — avoids an extra API call.
+      // github.context.payload.pull_request is populated for pull_request events;
+      // fall back to API only for non-PR triggers (e.g. issue_comment on a PR).
+      const prPayload = github.context.payload.pull_request
+      let prState: "open" | "closed" | "merged"
+      if (prPayload) {
+        prState = prPayload.merged ? "merged" : prPayload.state === "open" ? "open" : "closed"
+      } else {
+        const { data: prData } = await octokit.rest.pulls.get({ owner, repo: name, pull_number: prNumber })
+        prState = prData.merged ? "merged" : prData.state === "open" ? "open" : "closed"
+      }
+
+      if (prState !== "open") {
+        core.info(`Subway: PR #${prNumber} is ${prState} — skipping notification`)
+      } else {
+        await notifySubwayAgent(contact, decision, {
+          prNumber,
+          prUrl: `https://github.com/${owner}/${name}/pull/${prNumber}`,
+          repo: `${owner}/${name}`,
+          headSha: github.context.payload.pull_request?.head?.sha ?? process.env.GITHUB_SHA ?? "unknown",
+          prState,
+          runUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY ?? `${owner}/${name}`}/actions/runs/${process.env.GITHUB_RUN_ID ?? ""}`,
+        }, bridgeUrl)
+      }
     } catch (err) {
       core.info(`Subway notification failed non-fatally: ${(err as Error).message}`)
     }

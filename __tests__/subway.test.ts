@@ -125,6 +125,7 @@ describe("notifySubwayAgent", () => {
     prUrl: "https://github.com/owner/repo/pull/42",
     repo: "owner/repo",
     headSha: "abc123def456",
+    prState: "open" as const,
     runUrl: "https://github.com/owner/repo/actions/runs/999",
   }
 
@@ -177,6 +178,27 @@ describe("notifySubwayAgent", () => {
 
     await expect(
       notifySubwayAgent(null, decision, ctx, "http://127.0.0.1:19999")
+    ).resolves.not.toThrow()
+  })
+
+  it("includes pr_state in payload for open PR", async () => {
+    const openCtx = { ...ctx, prState: "open" as const }
+    await expect(
+      notifySubwayAgent(null, makeDecision(), openCtx, "http://127.0.0.1:19999")
+    ).resolves.not.toThrow()
+  })
+
+  it("includes pr_state in payload for merged PR", async () => {
+    const mergedCtx = { ...ctx, prState: "merged" as const }
+    await expect(
+      notifySubwayAgent(null, makeDecision(), mergedCtx, "http://127.0.0.1:19999")
+    ).resolves.not.toThrow()
+  })
+
+  it("includes pr_state in payload for closed PR", async () => {
+    const closedCtx = { ...ctx, prState: "closed" as const }
+    await expect(
+      notifySubwayAgent(null, makeDecision(), closedCtx, "http://127.0.0.1:19999")
     ).resolves.not.toThrow()
   })
 })
