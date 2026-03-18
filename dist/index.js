@@ -36623,6 +36623,7 @@ async function handlePRReview(octokit, ctx, anthropic, openai, debug, summaryOnC
                 prNumber,
                 prUrl: `https://github.com/${owner}/${name}/pull/${prNumber}`,
                 repo: `${owner}/${name}`,
+                headSha: process.env.GITHUB_SHA ?? "unknown",
                 runUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY ?? `${owner}/${name}`}/actions/runs/${process.env.GITHUB_RUN_ID ?? ""}`,
             }, bridgeUrl);
         }
@@ -37793,7 +37794,8 @@ async function loadPolicies(octokit, configPath, modeOverride) {
     const openaiModel = core.getInput("openai_model") || config.models.openai.model;
     const botNameInput = core.getInput("bot_name");
     const fixModeInput = core.getInput("fix_mode");
-    const triggerLabelInput = core.getInput("trigger_label");
+    const triggerLabelInput = core.getInput("trigger_label", { required: false, trimWhitespace: true });
+    const triggerLabelProvided = triggerLabelInput !== "";
     return {
         mode,
         autoFixEnabled: config.fix.mode !== "propose_only",
@@ -37812,7 +37814,7 @@ async function loadPolicies(octokit, configPath, modeOverride) {
             openai: { enabled: config.models.openai.enabled, model: openaiModel },
         },
         trigger: {
-            requireLabel: triggerLabelInput || config.trigger.require_label,
+            requireLabel: triggerLabelProvided ? triggerLabelInput : config.trigger.require_label,
             respondToMentions: config.trigger.respond_to_mentions,
             respondToReplies: config.trigger.respond_to_replies,
             botName: botNameInput || config.trigger.bot_name,
@@ -39266,6 +39268,7 @@ function buildPayload(decision, ctx) {
         pr_number: ctx.prNumber,
         pr_url: ctx.prUrl,
         repo: ctx.repo,
+        head_sha: ctx.headSha,
         action: decision.action,
         has_blockers: decision.action === "request_changes" || decision.action === "needs_human_review",
         findings_count: decision.findings.length,
