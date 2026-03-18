@@ -130,7 +130,7 @@ export class OpenRouterClient implements ModelClient {
       apiKey,
       baseURL: "https://openrouter.ai/api/v1",
       defaultHeaders: {
-        "HTTP-Referer": "https://github.com/hathbanger/sentinel",
+        "HTTP-Referer": "https://github.com/hathbanger/pr-sentinel",
         "X-Title": "Sentinel",
       },
     })
