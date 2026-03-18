@@ -5,12 +5,14 @@ export interface SubwayNotifyContext {
     repo: string;
     runUrl: string;
     headSha: string;
+    prState: "open" | "closed" | "merged";
 }
 export interface SubwayPayload {
     pr_number: number;
     pr_url: string;
     repo: string;
     head_sha: string;
+    pr_state: "open" | "closed" | "merged";
     action: string;
     has_blockers: boolean;
     findings_count: number;

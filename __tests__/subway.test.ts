@@ -125,6 +125,7 @@ describe("notifySubwayAgent", () => {
     prUrl: "https://github.com/owner/repo/pull/42",
     repo: "owner/repo",
     headSha: "abc123def456",
+    prState: "open" as const,
     runUrl: "https://github.com/owner/repo/actions/runs/999",
   }
 
