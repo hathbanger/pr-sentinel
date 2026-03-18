@@ -39238,6 +39238,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.readPrContact = readPrContact;
+exports.parseTrailerContact = parseTrailerContact;
 exports.readCommitContact = readCommitContact;
 exports.isContactFresh = isContactFresh;
 exports.notifySubwayAgent = notifySubwayAgent;
@@ -39274,28 +39275,37 @@ function readPrContact(workspaceDir = process.cwd()) {
         return null;
     }
 }
+function parseTrailerContact(msg) {
+    for (const line of msg.split("\n").reverse()) {
+        const match = line.match(new RegExp(`^${SUBWAY_TRAILER}:\\s*(.+)$`, "i"));
+        if (match) {
+            const name = match[1].trim();
+            if (!name)
+                continue;
+            return {
+                name,
+                relay: "relay.subway.dev",
+                registered_at: new Date().toISOString(),
+                source: "cli",
+            };
+        }
+    }
+    return null;
+}
 function readCommitContact(headSha = "HEAD") {
+    if (headSha !== "HEAD" && !/^[a-f0-9]{7,40}$/i.test(headSha)) {
+        core.info(`Subway: ignoring invalid headSha — ${headSha}`);
+        return null;
+    }
     try {
         const msg = cp.execSync(`git log -1 --format=%B ${headSha}`, {
             encoding: "utf-8",
             stdio: ["pipe", "pipe", "pipe"],
         }).trim();
-        for (const line of msg.split("\n").reverse()) {
-            const match = line.match(new RegExp(`^${SUBWAY_TRAILER}:\\s*(.+)$`, "i"));
-            if (match) {
-                const name = match[1].trim();
-                if (!name)
-                    continue;
-                core.info(`Subway: found ${SUBWAY_TRAILER} trailer → ${name}`);
-                return {
-                    name,
-                    relay: "relay.subway.dev",
-                    registered_at: new Date().toISOString(),
-                    source: "cli",
-                };
-            }
-        }
-        return null;
+        const contact = parseTrailerContact(msg);
+        if (contact)
+            core.info(`Subway: found ${SUBWAY_TRAILER} trailer → ${contact.name}`);
+        return contact;
     }
     catch (err) {
         core.info(`Subway: could not read commit message — ${err.message}`);
