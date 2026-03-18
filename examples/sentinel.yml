@@ -1,7 +1,12 @@
 # .github/sentinel.yml — Per-repo configuration
 # All fields are optional. Defaults are shown below.
+#
+# Issue behavior:
+#   When an issue is labeled (or @sentinel is mentioned on an issue),
+#   Sentinel triages it — posting root cause analysis, investigation steps,
+#   and suggested labels. Use "/bot fix" in a comment to attempt a code fix.
 
-mode: review # review | review_and_suggest | review_and_patch | issue_triage | manual_only
+mode: review # review | review_and_suggest | review_and_patch | issue_triage | issue_fix | manual_only
 
 models:
   anthropic:

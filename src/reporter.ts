@@ -1,6 +1,6 @@
 import * as core from "@actions/core"
 import * as github from "@actions/github"
-import type { FinalDecision, FinalAction, ReviewFinding, FindingSeverity, FindingType, FixResult, FixMode } from "./types"
+import type { FinalDecision, FinalAction, ReviewFinding, FindingSeverity, FindingType, FixResult, FixMode, TriageResult } from "./types"
 
 type Octokit = ReturnType<typeof github.getOctokit>
 
@@ -80,23 +80,156 @@ export async function reportReview(
 export async function reportIssueTriage(
   octokit: Octokit,
   issueNumber: number,
-  classification: string,
-  summary: string
+  result: TriageResult,
 ): Promise<void> {
-  const { owner, repo } = github.context.repo
-  const body = [
-    COMMENT_MARKER,
-    "## Sentinel — Issue Triage",
-    "",
-    `**Classification:** ${classification}`,
-    "",
-    summary,
-    "",
-    "---",
-    "*Triaged by Sentinel*",
-  ].join("\n")
+  const lines: string[] = [COMMENT_MARKER]
 
-  await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body })
+  if (!result.success || !result.triage) {
+    lines.push("## Sentinel — Triage Failed ❌")
+    lines.push("")
+    lines.push(`Could not triage this issue: ${result.error || "Unknown error"}`)
+    lines.push("")
+    lines.push("---")
+    lines.push("*Sentinel*")
+    await upsertComment(octokit, issueNumber, lines.join("\n"))
+    return
+  }
+
+  const t = result.triage
+
+  const classEmoji: Record<string, string> = {
+    bug: "🐛",
+    security: "🔒",
+    performance: "⚡",
+    feature_request: "✨",
+    question: "❓",
+    infrastructure: "🏗️",
+    documentation: "📝",
+  }
+
+  const sevEmoji: Record<string, string> = {
+    critical: "🔴",
+    high: "🟠",
+    medium: "🟡",
+    low: "🔵",
+  }
+
+  const complexityLabel: Record<string, string> = {
+    trivial: "Trivial",
+    small: "Small (hours)",
+    medium: "Medium (days)",
+    large: "Large (week+)",
+    unknown: "Unknown",
+  }
+
+  lines.push(`## Sentinel — Issue Triage ${classEmoji[t.classification] || "📋"}`)
+  lines.push("")
+
+  lines.push("| | |")
+  lines.push("|---|---|")
+  lines.push(`| **Type** | ${t.classification} |`)
+  lines.push(`| **Severity** | ${sevEmoji[t.severity] || "⚪"} ${t.severity} |`)
+  lines.push(`| **Complexity** | ${complexityLabel[t.estimatedComplexity] || t.estimatedComplexity} |`)
+  lines.push(`| **Confidence** | ${Math.round(t.confidence * 100)}% |`)
+  lines.push("")
+
+  lines.push("### Root Cause Analysis")
+  lines.push("")
+  lines.push(t.rootCauseAnalysis)
+  lines.push("")
+
+  if (t.affectedAreas.length > 0) {
+    lines.push("### Affected Areas")
+    lines.push("")
+    for (const area of t.affectedAreas) {
+      const conf = Math.round(area.confidence * 100)
+      lines.push(`- \`${area.path}\` — ${area.description} *(${conf}% confidence)*`)
+    }
+    lines.push("")
+  }
+
+  if (t.investigationSteps.length > 0) {
+    lines.push("### Investigation Steps")
+    lines.push("")
+    for (let i = 0; i < t.investigationSteps.length; i++) {
+      lines.push(`${i + 1}. ${t.investigationSteps[i]}`)
+    }
+    lines.push("")
+  }
+
+  if (t.relatedPatterns.length > 0) {
+    lines.push("<details>")
+    lines.push("<summary>Related Patterns</summary>")
+    lines.push("")
+    for (const p of t.relatedPatterns) {
+      lines.push(`- ${p}`)
+    }
+    lines.push("")
+    lines.push("</details>")
+    lines.push("")
+  }
+
+  if (t.questions.length > 0) {
+    lines.push("### Questions")
+    lines.push("")
+    for (const q of t.questions) {
+      lines.push(`- ${q}`)
+    }
+    lines.push("")
+  }
+
+  if (result.secondOpinion) {
+    const so = result.secondOpinion
+    lines.push("<details>")
+    lines.push("<summary>Second Opinion</summary>")
+    lines.push("")
+
+    if (!so.agreesWithAnalysis) {
+      lines.push(`⚠️ **Disagrees with primary analysis**`)
+      lines.push("")
+    }
+
+    if (so.additionalInsights) {
+      lines.push(`**Additional insights:** ${so.additionalInsights}`)
+      lines.push("")
+    }
+
+    if (so.alternativeHypotheses.length > 0) {
+      lines.push("**Alternative hypotheses:**")
+      for (const h of so.alternativeHypotheses) {
+        lines.push(`- ${h}`)
+      }
+      lines.push("")
+    }
+
+    if (so.priorityAdjustments) {
+      lines.push(`**Priority adjustments:** ${so.priorityAdjustments}`)
+      lines.push("")
+    }
+
+    if (so.refinedInvestigationSteps.length > 0) {
+      lines.push("**Refined investigation steps:**")
+      for (let i = 0; i < so.refinedInvestigationSteps.length; i++) {
+        lines.push(`${i + 1}. ${so.refinedInvestigationSteps[i]}`)
+      }
+      lines.push("")
+    }
+
+    lines.push("</details>")
+    lines.push("")
+  }
+
+  if (t.suggestedLabels.length > 0) {
+    lines.push(`**Suggested labels:** ${t.suggestedLabels.map((l) => "\`" + l + "\`").join(", ")}`)
+    lines.push("")
+  }
+
+  lines.push("---")
+  lines.push("*Did we get this right? 👍 / 👎 to inform future triage · Reply with `/bot fix` to attempt an automated fix*")
+  lines.push("")
+  lines.push("*Sentinel*")
+
+  await upsertComment(octokit, issueNumber, lines.join("\n"))
 }
 
 export async function reportFixResult(

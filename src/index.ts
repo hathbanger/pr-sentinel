@@ -6,6 +6,7 @@ import { loadPolicies, evaluateTrust } from "./policy"
 import { orchestrateReview } from "./orchestrator"
 import { reportReview, reportIssueTriage, reportFailure, reportFixResult } from "./reporter"
 import { fixIssue } from "./fixer"
+import { triageIssue } from "./triager"
 import { handleResponse } from "./responder"
 import { AnthropicClient } from "./models/anthropic"
 import { OpenAIClient } from "./models/openai"
@@ -81,7 +82,7 @@ async function run(): Promise<void> {
         break
       }
       case "issue_triage": {
-        await handleIssueTriage(octokit, routed.context)
+        await handleIssueTriage(octokit, routed.context, anthropic, openai, debug)
         break
       }
       case "respond": {
@@ -237,6 +238,18 @@ async function handleIssueFix(
 
   const result = await fixIssue(ctx, anthropic, openai, octokit, effectiveMode, confidenceThreshold)
 
+  if (!result.success && result.error?.includes("Could not find relevant code")) {
+    core.info(`Fix could not find relevant code — falling through to triage for issue #${ctx.issue!.number}`)
+    const triageResult = await triageIssue(ctx, anthropic, openai)
+    await reportIssueTriage(octokit, ctx.issue!.number, triageResult)
+    if (triageResult.success) {
+      core.info(`Triage posted (fallback from fix) for issue #${ctx.issue!.number}`)
+    } else {
+      core.warning(`Triage also failed for issue #${ctx.issue!.number}: ${triageResult.error}`)
+    }
+    return
+  }
+
   await reportFixResult(octokit, ctx.issue!.number, result, mode)
 
   if (result.success) {
@@ -248,7 +261,10 @@ async function handleIssueFix(
 
 async function handleIssueTriage(
   octokit: ReturnType<typeof github.getOctokit>,
-  ctx: import("./types").ReviewContext
+  ctx: import("./types").ReviewContext,
+  anthropic: ModelClient | null,
+  openai: ModelClient | null,
+  debug: boolean
 ): Promise<void> {
   if (!ctx.issue) {
     core.warning("No issue context available")
@@ -257,7 +273,19 @@ async function handleIssueTriage(
 
   ctx = await buildIssueContext(ctx, octokit)
 
-  core.info(`Issue #${ctx.issue!.number} triage: routing to fix flow`)
+  if (debug) {
+    core.info(`Triaging issue #${ctx.issue!.number}: ${ctx.issue!.title}`)
+  }
+
+  const result = await triageIssue(ctx, anthropic, openai)
+
+  await reportIssueTriage(octokit, ctx.issue!.number, result)
+
+  if (result.success) {
+    core.info(`Triage posted for issue #${ctx.issue!.number} (classification: ${result.triage?.classification}, severity: ${result.triage?.severity})`)
+  } else {
+    core.warning(`Triage failed for issue #${ctx.issue!.number}: ${result.error}`)
+  }
 }
 
 run()

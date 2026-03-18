@@ -9,8 +9,9 @@
 #
 # Trigger behavior:
 #   - PR labeled "agent" → dual-model review on every push
-#   - Issue labeled "agent" → analyze code, propose fix
+#   - Issue labeled "agent" → triage with root cause analysis + investigation steps
 #   - @sentinel in any comment → run appropriate action
+#   - /bot fix on an issue → attempt automated code fix
 #   - Reply to bot comment → conversational response
 #
 # Optional: create .github/sentinel.yml for per-repo configuration.

@@ -36474,6 +36474,7 @@ const policy_1 = __nccwpck_require__(3618);
 const orchestrator_1 = __nccwpck_require__(1519);
 const reporter_1 = __nccwpck_require__(5622);
 const fixer_1 = __nccwpck_require__(1343);
+const triager_1 = __nccwpck_require__(8057);
 const responder_1 = __nccwpck_require__(7873);
 const anthropic_1 = __nccwpck_require__(9654);
 const openai_1 = __nccwpck_require__(1502);
@@ -36542,7 +36543,7 @@ async function run() {
                 break;
             }
             case "issue_triage": {
-                await handleIssueTriage(octokit, routed.context);
+                await handleIssueTriage(octokit, routed.context, anthropic, openai, debug);
                 break;
             }
             case "respond": {
@@ -36673,6 +36674,18 @@ async function handleIssueFix(octokit, ctx, anthropic, openai, debug) {
         core.info(`Mutation blocked: ${trust.reason}. Mode downgraded to propose_only.`);
     }
     const result = await (0, fixer_1.fixIssue)(ctx, anthropic, openai, octokit, effectiveMode, confidenceThreshold);
+    if (!result.success && result.error?.includes("Could not find relevant code")) {
+        core.info(`Fix could not find relevant code — falling through to triage for issue #${ctx.issue.number}`);
+        const triageResult = await (0, triager_1.triageIssue)(ctx, anthropic, openai);
+        await (0, reporter_1.reportIssueTriage)(octokit, ctx.issue.number, triageResult);
+        if (triageResult.success) {
+            core.info(`Triage posted (fallback from fix) for issue #${ctx.issue.number}`);
+        }
+        else {
+            core.warning(`Triage also failed for issue #${ctx.issue.number}: ${triageResult.error}`);
+        }
+        return;
+    }
     await (0, reporter_1.reportFixResult)(octokit, ctx.issue.number, result, mode);
     if (result.success) {
         core.info(`Fix ${mode === "propose_only" ? "proposed" : "applied"} for issue #${ctx.issue.number}`);
@@ -36681,13 +36694,23 @@ async function handleIssueFix(octokit, ctx, anthropic, openai, debug) {
         core.warning(`Fix failed for issue #${ctx.issue.number}: ${result.error}`);
     }
 }
-async function handleIssueTriage(octokit, ctx) {
+async function handleIssueTriage(octokit, ctx, anthropic, openai, debug) {
     if (!ctx.issue) {
         core.warning("No issue context available");
         return;
     }
     ctx = await (0, context_1.buildIssueContext)(ctx, octokit);
-    core.info(`Issue #${ctx.issue.number} triage: routing to fix flow`);
+    if (debug) {
+        core.info(`Triaging issue #${ctx.issue.number}: ${ctx.issue.title}`);
+    }
+    const result = await (0, triager_1.triageIssue)(ctx, anthropic, openai);
+    await (0, reporter_1.reportIssueTriage)(octokit, ctx.issue.number, result);
+    if (result.success) {
+        core.info(`Triage posted for issue #${ctx.issue.number} (classification: ${result.triage?.classification}, severity: ${result.triage?.severity})`);
+    }
+    else {
+        core.warning(`Triage failed for issue #${ctx.issue.number}: ${result.error}`);
+    }
 }
 run();
 
@@ -38017,20 +38040,133 @@ async function reportReview(octokit, decision, prNumber, summaryOnClean = false)
     setOutputs(decision);
     core.info(`Review posted: ${decision.action}, ${decision.findings.length} findings (${inlineFindings.length} inline, ${nonInlineFindings.length} summary)`);
 }
-async function reportIssueTriage(octokit, issueNumber, classification, summary) {
-    const { owner, repo } = github.context.repo;
-    const body = [
-        COMMENT_MARKER,
-        "## Sentinel — Issue Triage",
-        "",
-        `**Classification:** ${classification}`,
-        "",
-        summary,
-        "",
-        "---",
-        "*Triaged by Sentinel*",
-    ].join("\n");
-    await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
+async function reportIssueTriage(octokit, issueNumber, result) {
+    const lines = [COMMENT_MARKER];
+    if (!result.success || !result.triage) {
+        lines.push("## Sentinel — Triage Failed ❌");
+        lines.push("");
+        lines.push(`Could not triage this issue: ${result.error || "Unknown error"}`);
+        lines.push("");
+        lines.push("---");
+        lines.push("*Sentinel*");
+        await upsertComment(octokit, issueNumber, lines.join("\n"));
+        return;
+    }
+    const t = result.triage;
+    const classEmoji = {
+        bug: "🐛",
+        security: "🔒",
+        performance: "⚡",
+        feature_request: "✨",
+        question: "❓",
+        infrastructure: "🏗️",
+        documentation: "📝",
+    };
+    const sevEmoji = {
+        critical: "🔴",
+        high: "🟠",
+        medium: "🟡",
+        low: "🔵",
+    };
+    const complexityLabel = {
+        trivial: "Trivial",
+        small: "Small (hours)",
+        medium: "Medium (days)",
+        large: "Large (week+)",
+        unknown: "Unknown",
+    };
+    lines.push(`## Sentinel — Issue Triage ${classEmoji[t.classification] || "📋"}`);
+    lines.push("");
+    lines.push("| | |");
+    lines.push("|---|---|");
+    lines.push(`| **Type** | ${t.classification} |`);
+    lines.push(`| **Severity** | ${sevEmoji[t.severity] || "⚪"} ${t.severity} |`);
+    lines.push(`| **Complexity** | ${complexityLabel[t.estimatedComplexity] || t.estimatedComplexity} |`);
+    lines.push(`| **Confidence** | ${Math.round(t.confidence * 100)}% |`);
+    lines.push("");
+    lines.push("### Root Cause Analysis");
+    lines.push("");
+    lines.push(t.rootCauseAnalysis);
+    lines.push("");
+    if (t.affectedAreas.length > 0) {
+        lines.push("### Affected Areas");
+        lines.push("");
+        for (const area of t.affectedAreas) {
+            const conf = Math.round(area.confidence * 100);
+            lines.push(`- \`${area.path}\` — ${area.description} *(${conf}% confidence)*`);
+        }
+        lines.push("");
+    }
+    if (t.investigationSteps.length > 0) {
+        lines.push("### Investigation Steps");
+        lines.push("");
+        for (let i = 0; i < t.investigationSteps.length; i++) {
+            lines.push(`${i + 1}. ${t.investigationSteps[i]}`);
+        }
+        lines.push("");
+    }
+    if (t.relatedPatterns.length > 0) {
+        lines.push("<details>");
+        lines.push("<summary>Related Patterns</summary>");
+        lines.push("");
+        for (const p of t.relatedPatterns) {
+            lines.push(`- ${p}`);
+        }
+        lines.push("");
+        lines.push("</details>");
+        lines.push("");
+    }
+    if (t.questions.length > 0) {
+        lines.push("### Questions");
+        lines.push("");
+        for (const q of t.questions) {
+            lines.push(`- ${q}`);
+        }
+        lines.push("");
+    }
+    if (result.secondOpinion) {
+        const so = result.secondOpinion;
+        lines.push("<details>");
+        lines.push("<summary>Second Opinion</summary>");
+        lines.push("");
+        if (!so.agreesWithAnalysis) {
+            lines.push(`⚠️ **Disagrees with primary analysis**`);
+            lines.push("");
+        }
+        if (so.additionalInsights) {
+            lines.push(`**Additional insights:** ${so.additionalInsights}`);
+            lines.push("");
+        }
+        if (so.alternativeHypotheses.length > 0) {
+            lines.push("**Alternative hypotheses:**");
+            for (const h of so.alternativeHypotheses) {
+                lines.push(`- ${h}`);
+            }
+            lines.push("");
+        }
+        if (so.priorityAdjustments) {
+            lines.push(`**Priority adjustments:** ${so.priorityAdjustments}`);
+            lines.push("");
+        }
+        if (so.refinedInvestigationSteps.length > 0) {
+            lines.push("**Refined investigation steps:**");
+            for (let i = 0; i < so.refinedInvestigationSteps.length; i++) {
+                lines.push(`${i + 1}. ${so.refinedInvestigationSteps[i]}`);
+            }
+            lines.push("");
+        }
+        lines.push("</details>");
+        lines.push("");
+    }
+    if (t.suggestedLabels.length > 0) {
+        lines.push(`**Suggested labels:** ${t.suggestedLabels.map((l) => "\`" + l + "\`").join(", ")}`);
+        lines.push("");
+    }
+    lines.push("---");
+    lines.push("*Did we get this right? 👍 / 👎 to inform future triage · Reply with `/bot fix` to attempt an automated fix*");
+    lines.push("");
+    lines.push("*Sentinel*");
+    await upsertComment(octokit, issueNumber, lines.join("\n"));
 }
 async function reportFixResult(octokit, issueNumber, result, mode) {
     const { owner, repo } = github.context.repo;
@@ -38828,7 +38964,7 @@ function routeIssue(ctx, action, policies) {
         body: issue.body || "",
         labels,
     };
-    return { actionType: "issue_fix", context: ctx };
+    return { actionType: "issue_triage", context: ctx };
 }
 // ── Issue / PR Comment Events ──
 function routeComment(ctx, policies) {
@@ -38854,7 +38990,7 @@ function routeComment(ctx, policies) {
     const mentioned = isMentioned(body, botName);
     if (mentioned) {
         attachIssueOrPR(ctx, issue, isPR);
-        const actionType = isPR ? "pr_review" : "issue_fix";
+        const actionType = isPR ? "pr_review" : "issue_triage";
         core.info(`@${botName} mentioned in comment on ${isPR ? "PR" : "issue"} #${issue.number}`);
         return { actionType, context: ctx };
     }
@@ -38954,7 +39090,7 @@ function parseSlashCommand(body, actor, issueNumber, isPR) {
 function resolveCommandAction(cmd, isPR) {
     switch (cmd.command) {
         case "review":
-            return isPR ? "pr_review" : "noop";
+            return isPR ? "pr_review" : "issue_triage";
         case "fix":
             return isPR ? "pr_fix" : "issue_fix";
         case "triage":
@@ -38964,7 +39100,7 @@ function resolveCommandAction(cmd, isPR) {
             return isPR ? "pr_review" : "issue_triage";
         case "security-review":
         case "tests":
-            return isPR ? "pr_review" : "noop";
+            return isPR ? "pr_review" : "issue_triage";
         case "ignore":
         case "retry":
         default:
@@ -39449,6 +39585,277 @@ function computeQuality(decision) {
         model_agreement = total > 0 ? agreed / total : 1.0;
     }
     return { quality_score, model_agreement };
+}
+
+
+/***/ }),
+
+/***/ 8057:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.triageIssue = triageIssue;
+const core = __importStar(__nccwpck_require__(7484));
+const codebase_1 = __nccwpck_require__(1515);
+const TRIAGE_SYSTEM = `You are a senior engineer triaging a bug report or feature request for a software project.
+
+Given the issue description, any existing comments, and whatever source code is available, produce a thorough diagnostic analysis.
+
+Your job is NOT to fix the issue — it is to help the team understand it.
+
+Rules:
+1. Start with a clear classification of what kind of issue this is
+2. Analyze the root cause based on the information available
+3. Identify which parts of the codebase are likely involved
+4. Suggest concrete investigation steps the team should take
+5. Note any missing information that would help diagnose the issue
+6. If the issue body already contains good analysis, validate and extend it rather than repeating it
+7. Be specific — reference file paths, function names, and patterns from the codebase when possible
+
+Output a JSON object (no markdown fences):
+{
+  "classification": "bug | security | performance | feature_request | question | infrastructure | documentation",
+  "severity": "critical | high | medium | low",
+  "title": "concise one-line summary of the issue",
+  "root_cause_analysis": "your understanding of the root cause or likely cause",
+  "affected_areas": [
+    {
+      "path": "file or directory path (or 'unknown' if not in codebase)",
+      "description": "what role this area plays in the issue",
+      "confidence": 0.0-1.0
+    }
+  ],
+  "investigation_steps": [
+    "concrete step 1 the team should take",
+    "concrete step 2"
+  ],
+  "questions": [
+    "question for the issue reporter if more info is needed"
+  ],
+  "related_patterns": [
+    "any patterns, anti-patterns, or known issues this resembles"
+  ],
+  "suggested_labels": ["label1", "label2"],
+  "estimated_complexity": "trivial | small | medium | large | unknown",
+  "confidence": 0.0-1.0
+}`;
+const SECOND_OPINION_SYSTEM = `You are a senior engineer providing a second opinion on a bug report triage.
+
+Given:
+- The original issue
+- A first engineer's diagnostic analysis
+- Available source code
+
+Your job is to:
+1. Validate or challenge the first analysis
+2. Identify anything they missed
+3. Add alternative hypotheses for the root cause
+4. Prioritize the investigation steps
+
+Output a JSON object (no markdown fences):
+{
+  "agrees_with_analysis": true/false,
+  "additional_insights": "what the first analysis missed or got wrong",
+  "alternative_hypotheses": ["other possible root causes"],
+  "priority_adjustments": "any changes to severity or complexity estimates",
+  "refined_investigation_steps": ["reordered or additional investigation steps"],
+  "confidence": 0.0-1.0
+}`;
+async function triageIssue(ctx, anthropic, openai) {
+    if (!ctx.issue)
+        return { success: false, error: "No issue context" };
+    const primary = anthropic || openai;
+    const secondary = anthropic && openai ? openai : null;
+    if (!primary)
+        return { success: false, error: "No model available" };
+    core.info(`Triaging issue #${ctx.issue.number}: ${ctx.issue.title}`);
+    const keywords = (0, codebase_1.extractKeywords)(ctx.issue.title, ctx.issue.body);
+    core.info(`Extracted ${keywords.length} keywords: ${keywords.slice(0, 5).join(", ")}`);
+    let codeContext = null;
+    try {
+        const result = await (0, codebase_1.analyzeCodebase)(keywords);
+        if (result.files.length > 0) {
+            codeContext = result;
+            core.info(`Found ${result.files.length} relevant files for context`);
+        }
+        else {
+            core.info("No relevant files found — proceeding with issue-only triage");
+        }
+    }
+    catch (err) {
+        core.info(`Codebase analysis failed (non-fatal): ${err}`);
+    }
+    const triage = await generateTriage(primary, ctx, codeContext);
+    let secondOpinion = null;
+    if (secondary) {
+        try {
+            secondOpinion = await generateSecondOpinion(secondary, ctx, triage, codeContext);
+        }
+        catch (err) {
+            core.info(`Second opinion failed (non-fatal): ${err}`);
+        }
+    }
+    return {
+        success: true,
+        triage,
+        secondOpinion: secondOpinion ?? undefined,
+        codeContext: codeContext ?? undefined,
+    };
+}
+async function generateTriage(model, ctx, codeContext) {
+    const issue = ctx.issue;
+    const parts = [];
+    parts.push(`# Issue #${issue.number}: ${issue.title}`);
+    parts.push("");
+    parts.push(issue.body);
+    if (issue.comments && issue.comments.length > 0) {
+        parts.push("");
+        parts.push("## Existing Comments");
+        for (const comment of issue.comments) {
+            parts.push("");
+            parts.push(comment);
+        }
+    }
+    if (codeContext) {
+        parts.push("");
+        parts.push("## Project Structure");
+        parts.push(codeContext.structure);
+        parts.push("");
+        parts.push("## Dependencies");
+        parts.push(codeContext.dependencies);
+        if (codeContext.files.length > 0) {
+            parts.push("");
+            parts.push("## Relevant Source Files");
+            for (const f of codeContext.files) {
+                parts.push("");
+                parts.push(`### ${f.path}`);
+                parts.push(`Relevance: ${f.relevance}`);
+                parts.push("```");
+                parts.push(f.content);
+                parts.push("```");
+            }
+        }
+    }
+    else {
+        parts.push("");
+        parts.push("## Note");
+        parts.push("No matching source files were found in the repository for the paths/symbols mentioned in this issue.");
+        parts.push("Provide your analysis based on the issue description and your engineering expertise.");
+    }
+    const result = await model.chat(TRIAGE_SYSTEM, parts.join("\n"));
+    const parsed = parseTriageResponse(result.text);
+    return {
+        classification: parsed.classification,
+        severity: parsed.severity,
+        title: parsed.title,
+        rootCauseAnalysis: parsed.root_cause_analysis,
+        affectedAreas: parsed.affected_areas,
+        investigationSteps: parsed.investigation_steps,
+        questions: parsed.questions,
+        relatedPatterns: parsed.related_patterns,
+        suggestedLabels: parsed.suggested_labels,
+        estimatedComplexity: parsed.estimated_complexity,
+        confidence: parsed.confidence,
+    };
+}
+async function generateSecondOpinion(model, ctx, triage, codeContext) {
+    const issue = ctx.issue;
+    const parts = [];
+    parts.push(`# Issue #${issue.number}: ${issue.title}`);
+    parts.push("");
+    parts.push(issue.body);
+    parts.push("");
+    parts.push("## First Engineer's Analysis");
+    parts.push(JSON.stringify(triage, null, 2));
+    if (codeContext && codeContext.files.length > 0) {
+        parts.push("");
+        parts.push("## Available Source Code");
+        for (const f of codeContext.files.slice(0, 5)) {
+            parts.push("");
+            parts.push(`### ${f.path}`);
+            parts.push("```");
+            parts.push(f.content.substring(0, 3000));
+            parts.push("```");
+        }
+    }
+    const result = await model.chat(SECOND_OPINION_SYSTEM, parts.join("\n"));
+    const parsed = parseSecondOpinion(result.text);
+    return {
+        agreesWithAnalysis: parsed.agrees_with_analysis,
+        additionalInsights: parsed.additional_insights,
+        alternativeHypotheses: parsed.alternative_hypotheses,
+        priorityAdjustments: parsed.priority_adjustments,
+        refinedInvestigationSteps: parsed.refined_investigation_steps,
+        confidence: parsed.confidence,
+    };
+}
+function parseTriageResponse(raw) {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match)
+        throw new Error("No JSON object found in triage response");
+    const parsed = JSON.parse(match[0]);
+    return {
+        classification: parsed.classification || "bug",
+        severity: parsed.severity || "medium",
+        title: parsed.title || "Untitled",
+        root_cause_analysis: parsed.root_cause_analysis || "",
+        affected_areas: parsed.affected_areas || [],
+        investigation_steps: parsed.investigation_steps || [],
+        questions: parsed.questions || [],
+        related_patterns: parsed.related_patterns || [],
+        suggested_labels: parsed.suggested_labels || [],
+        estimated_complexity: parsed.estimated_complexity || "unknown",
+        confidence: parsed.confidence ?? 0.5,
+    };
+}
+function parseSecondOpinion(raw) {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match)
+        throw new Error("No JSON object found in second opinion response");
+    const parsed = JSON.parse(match[0]);
+    return {
+        agrees_with_analysis: parsed.agrees_with_analysis ?? true,
+        additional_insights: parsed.additional_insights || "",
+        alternative_hypotheses: parsed.alternative_hypotheses || [],
+        priority_adjustments: parsed.priority_adjustments || "",
+        refined_investigation_steps: parsed.refined_investigation_steps || [],
+        confidence: parsed.confidence ?? 0.5,
+    };
 }
 
 

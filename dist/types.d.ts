@@ -208,3 +208,33 @@ export interface CodeContext {
     structure: string;
     dependencies: string;
 }
+export interface TriageResult {
+    success: boolean;
+    error?: string;
+    triage?: {
+        classification: string;
+        severity: string;
+        title: string;
+        rootCauseAnalysis: string;
+        affectedAreas: Array<{
+            path: string;
+            description: string;
+            confidence: number;
+        }>;
+        investigationSteps: string[];
+        questions: string[];
+        relatedPatterns: string[];
+        suggestedLabels: string[];
+        estimatedComplexity: string;
+        confidence: number;
+    };
+    secondOpinion?: {
+        agreesWithAnalysis: boolean;
+        additionalInsights: string;
+        alternativeHypotheses: string[];
+        priorityAdjustments: string;
+        refinedInvestigationSteps: string[];
+        confidence: number;
+    };
+    codeContext?: CodeContext;
+}

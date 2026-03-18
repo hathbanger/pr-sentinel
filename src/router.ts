@@ -131,7 +131,7 @@ function routeIssue(ctx: ReviewContext, action: string, policies: RepoPolicies):
     labels,
   }
 
-  return { actionType: "issue_fix", context: ctx }
+  return { actionType: "issue_triage", context: ctx }
 }
 
 // ── Issue / PR Comment Events ──
@@ -162,7 +162,7 @@ function routeComment(ctx: ReviewContext, policies: RepoPolicies): RoutedEvent {
   const mentioned = isMentioned(body, botName)
   if (mentioned) {
     attachIssueOrPR(ctx, issue, isPR)
-    const actionType = isPR ? "pr_review" : "issue_fix"
+    const actionType = isPR ? "pr_review" : "issue_triage"
     core.info(`@${botName} mentioned in comment on ${isPR ? "PR" : "issue"} #${issue.number}`)
     return { actionType, context: ctx }
   }
@@ -281,7 +281,7 @@ function parseSlashCommand(body: string, actor: string, issueNumber: number, isP
 function resolveCommandAction(cmd: SlashCommand, isPR: boolean): ActionType {
   switch (cmd.command) {
     case "review":
-      return isPR ? "pr_review" : "noop"
+      return isPR ? "pr_review" : "issue_triage"
     case "fix":
       return isPR ? "pr_fix" : "issue_fix"
     case "triage":
@@ -291,7 +291,7 @@ function resolveCommandAction(cmd: SlashCommand, isPR: boolean): ActionType {
       return isPR ? "pr_review" : "issue_triage"
     case "security-review":
     case "tests":
-      return isPR ? "pr_review" : "noop"
+      return isPR ? "pr_review" : "issue_triage"
     case "ignore":
     case "retry":
     default:
