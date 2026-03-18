@@ -84,8 +84,12 @@ export function readCommitContact(headSha = "HEAD"): SubwayContact | null {
       stdio: ["pipe", "pipe", "pipe"],
     })
 
-    if (result.status !== 0 || result.error) {
-      core.info(`Subway: git log failed — ${result.stderr?.trim() || result.error?.message || "unknown error"}`)
+    if (result.error) {
+      core.info(`Subway: git spawn failed — ${result.error.message}`)
+      return null
+    }
+    if (result.status !== 0) {
+      core.info(`Subway: git log failed — ${result.stderr?.trim() || "unknown error"}`)
       return null
     }
 

@@ -128,10 +128,6 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         severity_threshold: "low" | "medium" | "high" | "critical";
         summary_on_clean: boolean;
     };
-    security: {
-        restricted_paths: string[];
-        block_fork_mutation: boolean;
-    };
     validation: {
         commands: string[];
     };
@@ -151,6 +147,10 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         respond_to_replies: boolean;
         bot_name: string;
     };
+    security: {
+        restricted_paths: string[];
+        block_fork_mutation: boolean;
+    };
 }, {
     mode?: "issue_triage" | "issue_fix" | "review" | "review_and_suggest" | "review_and_patch" | "manual_only" | undefined;
     fix?: {
@@ -166,10 +166,6 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         inline_comments?: boolean | undefined;
         severity_threshold?: "low" | "medium" | "high" | "critical" | undefined;
         summary_on_clean?: boolean | undefined;
-    } | undefined;
-    security?: {
-        restricted_paths?: string[] | undefined;
-        block_fork_mutation?: boolean | undefined;
     } | undefined;
     validation?: {
         commands?: string[] | undefined;
@@ -189,6 +185,10 @@ export declare const SentinelConfigSchema: z.ZodObject<{
         respond_to_mentions?: boolean | undefined;
         respond_to_replies?: boolean | undefined;
         bot_name?: string | undefined;
+    } | undefined;
+    security?: {
+        restricted_paths?: string[] | undefined;
+        block_fork_mutation?: boolean | undefined;
     } | undefined;
 }>;
 export type SentinelConfig = z.infer<typeof SentinelConfigSchema>;

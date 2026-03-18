@@ -6,11 +6,11 @@ export declare const FileChangeSchema: z.ZodObject<{
         search: z.ZodString;
         replace: z.ZodString;
     }, "strip", z.ZodTypeAny, {
-        search: string;
         replace: string;
+        search: string;
     }, {
-        search: string;
         replace: string;
+        search: string;
     }>, "many">>;
     content: z.ZodOptional<z.ZodString>;
     explanation: z.ZodString;
@@ -20,8 +20,8 @@ export declare const FileChangeSchema: z.ZodObject<{
     explanation: string;
     content?: string | undefined;
     changes?: {
-        search: string;
         replace: string;
+        search: string;
     }[] | undefined;
 }, {
     path: string;
@@ -29,8 +29,8 @@ export declare const FileChangeSchema: z.ZodObject<{
     explanation: string;
     content?: string | undefined;
     changes?: {
-        search: string;
         replace: string;
+        search: string;
     }[] | undefined;
 }>;
 export declare const FixPlanSchema: z.ZodObject<{
@@ -44,11 +44,11 @@ export declare const FixPlanSchema: z.ZodObject<{
             search: z.ZodString;
             replace: z.ZodString;
         }, "strip", z.ZodTypeAny, {
-            search: string;
             replace: string;
+            search: string;
         }, {
-            search: string;
             replace: string;
+            search: string;
         }>, "many">>;
         content: z.ZodOptional<z.ZodString>;
         explanation: z.ZodString;
@@ -58,8 +58,8 @@ export declare const FixPlanSchema: z.ZodObject<{
         explanation: string;
         content?: string | undefined;
         changes?: {
-            search: string;
             replace: string;
+            search: string;
         }[] | undefined;
     }, {
         path: string;
@@ -67,8 +67,8 @@ export declare const FixPlanSchema: z.ZodObject<{
         explanation: string;
         content?: string | undefined;
         changes?: {
-            search: string;
             replace: string;
+            search: string;
         }[] | undefined;
     }>, "many">;
     commit_message: z.ZodString;
@@ -81,8 +81,8 @@ export declare const FixPlanSchema: z.ZodObject<{
         explanation: string;
         content?: string | undefined;
         changes?: {
-            search: string;
             replace: string;
+            search: string;
         }[] | undefined;
     }[];
     analysis: string;
@@ -98,8 +98,8 @@ export declare const FixPlanSchema: z.ZodObject<{
         explanation: string;
         content?: string | undefined;
         changes?: {
-            search: string;
             replace: string;
+            search: string;
         }[] | undefined;
     }[];
     analysis: string;
