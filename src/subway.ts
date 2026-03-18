@@ -78,17 +78,18 @@ export function parseTrailerContact(msg: string): SubwayContact | null {
 }
 
 export function readCommitContact(headSha = "HEAD"): SubwayContact | null {
-  if (headSha !== "HEAD" && !/^[a-f0-9]{7,40}$/i.test(headSha)) {
-    core.info(`Subway: ignoring invalid headSha — ${headSha}`)
-    return null
-  }
-
   try {
-    const msg = cp.execSync(`git log -1 --format=%B ${headSha}`, {
+    const result = cp.spawnSync("git", ["log", "-1", "--format=%B", headSha], {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
-    }).trim()
+    })
 
+    if (result.status !== 0 || result.error) {
+      core.info(`Subway: git log failed — ${result.stderr?.trim() || result.error?.message || "unknown error"}`)
+      return null
+    }
+
+    const msg = (result.stdout ?? "").trim()
     const contact = parseTrailerContact(msg)
     if (contact) core.info(`Subway: found ${SUBWAY_TRAILER} trailer → ${contact.name}`)
     return contact

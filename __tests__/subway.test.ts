@@ -120,10 +120,11 @@ describe("isContactFresh", () => {
 })
 
 describe("readCommitContact", () => {
-  it("returns null for invalid SHA format", () => {
-    expect(readCommitContact("not-a-sha!!")).toBeNull()
+  it("returns null for shell-unsafe input without injecting — spawnSync args array", () => {
+    // spawnSync passes args directly, no shell — these should fail gracefully not execute
     expect(readCommitContact("; rm -rf /")).toBeNull()
     expect(readCommitContact("$(evil)")).toBeNull()
+    expect(readCommitContact("not-a-sha!!")).toBeNull()
   })
 
   it("allows HEAD as a valid ref", () => {
