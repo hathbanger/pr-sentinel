@@ -8,7 +8,7 @@ vi.mock("@actions/core", () => ({
   warning: vi.fn(),
 }))
 
-import { readPrContact, isContactFresh, notifySubwayAgent } from "../src/subway"
+import { readPrContact, readCommitContact, isContactFresh, notifySubwayAgent } from "../src/subway"
 import type { SubwayContact } from "../src/types"
 import type { FinalDecision } from "../src/types"
 
@@ -116,6 +116,22 @@ describe("isContactFresh", () => {
     })
     expect(isContactFresh(contact, 5 * 60 * 1000)).toBe(false)
     expect(isContactFresh(contact, 20 * 60 * 1000)).toBe(true)
+  })
+})
+
+describe("readCommitContact", () => {
+  it("returns null when git command fails", () => {
+    const result = readCommitContact("nonexistent-sha-zzz")
+    expect(result).toBeNull()
+  })
+
+  it("extracts Subway-Agent trailer from HEAD commit", () => {
+    const result = readCommitContact("HEAD")
+    if (result !== null) {
+      expect(result.name).toMatch(/\S+/)
+      expect(result.relay).toBe("relay.subway.dev")
+      expect(result.source).toBe("cli")
+    }
   })
 })
 

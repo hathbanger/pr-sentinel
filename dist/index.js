@@ -36615,7 +36615,10 @@ async function handlePRReview(octokit, ctx, anthropic, openai, debug, summaryOnC
     await (0, reporter_1.reportReview)(octokit, decision, ctx.pullRequest.number, summaryOnClean);
     if (core.getInput("subway_notify") !== "false") {
         try {
-            const contact = (0, subway_1.readPrContact)();
+            // Commit trailer takes priority — always fresh, no file needed.
+            // Falls back to .subway/pr-contact if no trailer found.
+            const headSha = github.context.payload.pull_request?.head?.sha;
+            const contact = (0, subway_1.readCommitContact)(headSha) ?? (0, subway_1.readPrContact)();
             const bridgeUrl = core.getInput("subway_bridge_url") || "https://relay.subway.dev";
             const { owner, name } = ctx.repository;
             const prNumber = ctx.pullRequest.number;
@@ -39235,16 +39238,19 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.readPrContact = readPrContact;
+exports.readCommitContact = readCommitContact;
 exports.isContactFresh = isContactFresh;
 exports.notifySubwayAgent = notifySubwayAgent;
 const https = __importStar(__nccwpck_require__(5692));
 const http = __importStar(__nccwpck_require__(8611));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
+const cp = __importStar(__nccwpck_require__(5317));
 const core = __importStar(__nccwpck_require__(7484));
 const CONTACT_FILE = ".subway/pr-contact";
 const DIRECT_CALL_MAX_AGE_MS = 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 10_000;
+const SUBWAY_TRAILER = "Subway-Agent";
 function readPrContact(workspaceDir = process.cwd()) {
     try {
         const contactPath = path.join(workspaceDir, CONTACT_FILE);
@@ -39265,6 +39271,34 @@ function readPrContact(workspaceDir = process.cwd()) {
     }
     catch (err) {
         core.info(`Subway: could not read .subway/pr-contact — ${err.message}`);
+        return null;
+    }
+}
+function readCommitContact(headSha = "HEAD") {
+    try {
+        const msg = cp.execSync(`git log -1 --format=%B ${headSha}`, {
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+        }).trim();
+        for (const line of msg.split("\n").reverse()) {
+            const match = line.match(new RegExp(`^${SUBWAY_TRAILER}:\\s*(.+)$`, "i"));
+            if (match) {
+                const name = match[1].trim();
+                if (!name)
+                    continue;
+                core.info(`Subway: found ${SUBWAY_TRAILER} trailer → ${name}`);
+                return {
+                    name,
+                    relay: "relay.subway.dev",
+                    registered_at: new Date().toISOString(),
+                    source: "cli",
+                };
+            }
+        }
+        return null;
+    }
+    catch (err) {
+        core.info(`Subway: could not read commit message — ${err.message}`);
         return null;
     }
 }

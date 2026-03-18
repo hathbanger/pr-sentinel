@@ -464,21 +464,33 @@ Sentinel can notify the agent that opened a PR directly on the [Subway P2P mesh]
 
 ```
 Agent session starts
-  → writes .subway/pr-contact to the repo
+  → writes .subway/pr-contact to the repo (or uses commit trailer)
 
 Agent opens a PR
-  → .subway/pr-contact is committed on the branch
+  → commit message includes Subway-Agent: <name> trailer (or .subway/pr-contact on branch)
 
 Sentinel runs on the PR
-  → reads .subway/pr-contact from the checkout
-  → tries a direct RPC call to the named agent (if registered < 1 hour ago)
-  → broadcasts to ci.sentinel.{owner}.{repo}.pr{number} regardless
+  → checks HEAD commit for Subway-Agent: trailer  (priority 1)
+  → falls back to .subway/pr-contact file         (priority 2)
+  → falls back to broadcast only                  (priority 3)
   → agent receives the result, fixes issues, pushes — loop continues
 ```
 
-### Setup
+### Setup — Commit Trailer (recommended)
 
-No configuration required if you're using the public relay. The file `.subway/pr-contact` in the repo root tells Sentinel where to send results:
+The simplest approach: add a `Subway-Agent:` trailer to any commit on the PR branch. No files to manage, always fresh.
+
+```
+fix: address Sentinel findings
+
+Subway-Agent: andrew.relay
+```
+
+Sentinel parses the HEAD commit message, extracts the agent name, and sends the result directly. Works with any git workflow — just include the trailer in your commit.
+
+### Setup — `.subway/pr-contact` File (alternative)
+
+For persistent registration, commit a `.subway/pr-contact` file on the branch:
 
 ```json
 {
@@ -488,6 +500,8 @@ No configuration required if you're using the public relay. The file `.subway/pr
   "source": "pi-extension"
 }
 ```
+
+The `registered_at` timestamp must be within the last hour for a direct call — otherwise Sentinel falls back to broadcast only.
 
 This file is written automatically when you start a Subway agent via the Pi extension (`/subway name <name>`) or the Claude Code skill (`/subway-agent start`). Commit it on your PR branch and Sentinel finds it.
 
