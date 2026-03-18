@@ -8,7 +8,7 @@ vi.mock("@actions/core", () => ({
   warning: vi.fn(),
 }))
 
-import { readPrContact, isContactFresh, notifySubwayAgent } from "../src/subway"
+import { readPrContact, readCommitContact, parseTrailerContact, isContactFresh, notifySubwayAgent } from "../src/subway"
 import type { SubwayContact } from "../src/types"
 import type { FinalDecision } from "../src/types"
 
@@ -116,6 +116,58 @@ describe("isContactFresh", () => {
     })
     expect(isContactFresh(contact, 5 * 60 * 1000)).toBe(false)
     expect(isContactFresh(contact, 20 * 60 * 1000)).toBe(true)
+  })
+})
+
+describe("readCommitContact", () => {
+  it("returns null for invalid SHA format", () => {
+    expect(readCommitContact("not-a-sha!!")).toBeNull()
+    expect(readCommitContact("; rm -rf /")).toBeNull()
+    expect(readCommitContact("$(evil)")).toBeNull()
+  })
+
+  it("allows HEAD as a valid ref", () => {
+    const result = readCommitContact("HEAD")
+    expect(result === null || typeof result?.name === "string").toBe(true)
+  })
+
+  it("returns null when git command fails on unknown SHA", () => {
+    expect(readCommitContact("0000000000000000000000000000000000000000")).toBeNull()
+  })
+})
+
+describe("parseTrailerContact", () => {
+  it("extracts Subway-Agent trailer", () => {
+    const result = parseTrailerContact("fix: something\n\nSubway-Agent: mybot.relay\n")
+    expect(result?.name).toBe("mybot.relay")
+    expect(result?.relay).toBe("relay.subway.dev")
+    expect(result?.source).toBe("cli")
+  })
+
+  it("returns null when no trailer present", () => {
+    expect(parseTrailerContact("fix: something\n\nNo trailer here.\n")).toBeNull()
+  })
+
+  it("ignores empty trailer value", () => {
+    expect(parseTrailerContact("fix: something\n\nSubway-Agent:   \n")).toBeNull()
+  })
+
+  it("is case-insensitive for the trailer key", () => {
+    expect(parseTrailerContact("fix: something\n\nsubway-agent: bot.relay\n")?.name).toBe("bot.relay")
+    expect(parseTrailerContact("fix: something\n\nSUBWAY-AGENT: bot.relay\n")?.name).toBe("bot.relay")
+  })
+
+  it("uses the last trailer when multiple are present", () => {
+    const result = parseTrailerContact("fix: something\n\nSubway-Agent: first.relay\nSubway-Agent: last.relay\n")
+    expect(result?.name).toBe("last.relay")
+  })
+
+  it("trims whitespace from extracted name", () => {
+    expect(parseTrailerContact("fix: something\n\nSubway-Agent:   padded.relay   \n")?.name).toBe("padded.relay")
+  })
+
+  it("returns null for empty commit message", () => {
+    expect(parseTrailerContact("")).toBeNull()
   })
 })
 

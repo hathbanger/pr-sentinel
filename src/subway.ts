@@ -2,12 +2,14 @@ import * as https from "https"
 import * as http from "http"
 import * as fs from "fs"
 import * as path from "path"
+import * as cp from "child_process"
 import * as core from "@actions/core"
 import type { SubwayContact, FinalDecision, FindingSeverity } from "./types"
 
 const CONTACT_FILE = ".subway/pr-contact"
 const DIRECT_CALL_MAX_AGE_MS = 60 * 60 * 1000
 const REQUEST_TIMEOUT_MS = 10_000
+const SUBWAY_TRAILER = "Subway-Agent"
 
 export interface SubwayNotifyContext {
   prNumber: number
@@ -54,6 +56,44 @@ export function readPrContact(workspaceDir = process.cwd()): SubwayContact | nul
     }
   } catch (err) {
     core.info(`Subway: could not read .subway/pr-contact — ${(err as Error).message}`)
+    return null
+  }
+}
+
+export function parseTrailerContact(msg: string): SubwayContact | null {
+  for (const line of msg.split("\n").reverse()) {
+    const match = line.match(new RegExp(`^${SUBWAY_TRAILER}:\\s*(.+)$`, "i"))
+    if (match) {
+      const name = match[1].trim()
+      if (!name) continue
+      return {
+        name,
+        relay: "relay.subway.dev",
+        registered_at: new Date().toISOString(),
+        source: "cli",
+      }
+    }
+  }
+  return null
+}
+
+export function readCommitContact(headSha = "HEAD"): SubwayContact | null {
+  if (headSha !== "HEAD" && !/^[a-f0-9]{7,40}$/i.test(headSha)) {
+    core.info(`Subway: ignoring invalid headSha — ${headSha}`)
+    return null
+  }
+
+  try {
+    const msg = cp.execSync(`git log -1 --format=%B ${headSha}`, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim()
+
+    const contact = parseTrailerContact(msg)
+    if (contact) core.info(`Subway: found ${SUBWAY_TRAILER} trailer → ${contact.name}`)
+    return contact
+  } catch (err) {
+    core.info(`Subway: could not read commit message — ${(err as Error).message}`)
     return null
   }
 }

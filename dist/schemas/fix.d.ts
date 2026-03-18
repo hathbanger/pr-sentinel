@@ -6,11 +6,11 @@ export declare const FileChangeSchema: z.ZodObject<{
         search: z.ZodString;
         replace: z.ZodString;
     }, "strip", z.ZodTypeAny, {
-        replace: string;
         search: string;
+        replace: string;
     }, {
-        replace: string;
         search: string;
+        replace: string;
     }>, "many">>;
     content: z.ZodOptional<z.ZodString>;
     explanation: z.ZodString;
@@ -20,8 +20,8 @@ export declare const FileChangeSchema: z.ZodObject<{
     explanation: string;
     content?: string | undefined;
     changes?: {
-        replace: string;
         search: string;
+        replace: string;
     }[] | undefined;
 }, {
     path: string;
@@ -29,8 +29,8 @@ export declare const FileChangeSchema: z.ZodObject<{
     explanation: string;
     content?: string | undefined;
     changes?: {
-        replace: string;
         search: string;
+        replace: string;
     }[] | undefined;
 }>;
 export declare const FixPlanSchema: z.ZodObject<{
@@ -44,11 +44,11 @@ export declare const FixPlanSchema: z.ZodObject<{
             search: z.ZodString;
             replace: z.ZodString;
         }, "strip", z.ZodTypeAny, {
-            replace: string;
             search: string;
+            replace: string;
         }, {
-            replace: string;
             search: string;
+            replace: string;
         }>, "many">>;
         content: z.ZodOptional<z.ZodString>;
         explanation: z.ZodString;
@@ -58,8 +58,8 @@ export declare const FixPlanSchema: z.ZodObject<{
         explanation: string;
         content?: string | undefined;
         changes?: {
-            replace: string;
             search: string;
+            replace: string;
         }[] | undefined;
     }, {
         path: string;
@@ -67,44 +67,44 @@ export declare const FixPlanSchema: z.ZodObject<{
         explanation: string;
         content?: string | undefined;
         changes?: {
-            replace: string;
             search: string;
+            replace: string;
         }[] | undefined;
     }>, "many">;
     commit_message: z.ZodString;
     test_suggestions: z.ZodArray<z.ZodString, "many">;
     risk_notes: z.ZodArray<z.ZodString, "many">;
 }, "strip", z.ZodTypeAny, {
-    analysis: string;
-    fixable: boolean;
-    confidence: number;
     files: {
         path: string;
         action: "modify" | "create" | "delete";
         explanation: string;
         content?: string | undefined;
         changes?: {
-            replace: string;
             search: string;
+            replace: string;
         }[] | undefined;
     }[];
+    analysis: string;
+    fixable: boolean;
+    confidence: number;
     commit_message: string;
     test_suggestions: string[];
     risk_notes: string[];
 }, {
-    analysis: string;
-    fixable: boolean;
-    confidence: number;
     files: {
         path: string;
         action: "modify" | "create" | "delete";
         explanation: string;
         content?: string | undefined;
         changes?: {
-            replace: string;
             search: string;
+            replace: string;
         }[] | undefined;
     }[];
+    analysis: string;
+    fixable: boolean;
+    confidence: number;
     commit_message: string;
     test_suggestions: string[];
     risk_notes: string[];

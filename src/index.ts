@@ -10,7 +10,7 @@ import { handleResponse } from "./responder"
 import { AnthropicClient } from "./models/anthropic"
 import { OpenAIClient } from "./models/openai"
 import { OpenRouterClient } from "./models/openrouter"
-import { readPrContact, notifySubwayAgent } from "./subway"
+import { readPrContact, readCommitContact, notifySubwayAgent } from "./subway"
 import type { ModelClient } from "./models/types"
 
 async function run(): Promise<void> {
@@ -166,7 +166,10 @@ async function handlePRReview(
 
   if (core.getInput("subway_notify") !== "false") {
     try {
-      const contact = readPrContact()
+      // Commit trailer takes priority — always fresh, no file needed.
+      // Falls back to .subway/pr-contact if no trailer found.
+      const headSha = github.context.payload.pull_request?.head?.sha as string | undefined
+      const contact = readCommitContact(headSha) ?? readPrContact()
       const bridgeUrl = core.getInput("subway_bridge_url") || "https://relay.subway.dev"
       const { owner, name } = ctx.repository
       const prNumber = ctx.pullRequest!.number
